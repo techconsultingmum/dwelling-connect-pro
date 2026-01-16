@@ -14,9 +14,9 @@ import {
   Menu,
   X,
   Building2,
-  Bell,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface NavItem {
   icon: React.ElementType;
@@ -81,7 +81,9 @@ export function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-sidebar-border">
-        <div className="flex items-center gap-3 px-4 py-3 mb-3">
+        <ThemeToggle variant="sidebar" />
+        
+        <div className="flex items-center gap-3 px-4 py-3 mt-2">
           <div className="w-10 h-10 rounded-full bg-sidebar-accent flex items-center justify-center">
             <span className="text-sm font-semibold text-sidebar-foreground">
               {user?.name?.charAt(0) || 'U'}
