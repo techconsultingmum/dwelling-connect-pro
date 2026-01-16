@@ -80,7 +80,10 @@ export default function Index() {
                   <ArrowRight className="w-5 h-5" />
                 </Button>
               </Link>
-              <Button size="xl" variant="outline" className="border-white/30 text-white hover:bg-white/10 w-full sm:w-auto">
+              <Button 
+                size="xl" 
+                className="bg-white/20 border-2 border-white text-white hover:bg-white/30 backdrop-blur-sm w-full sm:w-auto"
+              >
                 View Demo
               </Button>
             </div>
