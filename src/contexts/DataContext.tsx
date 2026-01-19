@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import { User, Notice, Complaint, ChatMessage, MaintenanceBill, DashboardStats } from '@/types';
+import { supabase } from '@/integrations/supabase/client';
 
 interface DataContextType {
   members: User[];
@@ -9,7 +10,7 @@ interface DataContextType {
   bills: MaintenanceBill[];
   stats: DashboardStats;
   isLoading: boolean;
-  loadMembersFromCSV: (url: string) => Promise<void>;
+  syncFromGoogleSheet: () => Promise<void>;
   addNotice: (notice: Omit<Notice, 'id'>) => void;
   addComplaint: (complaint: Omit<Complaint, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateComplaintStatus: (id: string, status: Complaint['status']) => void;
@@ -21,7 +22,6 @@ interface DataContextType {
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
 const WEBHOOK_URL = 'https://wasekom.app.n8n.cloud/webhook-test/HrErpApp';
-const CSV_URL = 'https://docs.google.com/spreadsheets/d/1sQta9o2wRufsm9Kn7I9GRocNDviU-z9YgJb9m6uxIAo/export?format=csv';
 
 // Demo data
 const demoNotices: Notice[] = [
@@ -207,41 +207,57 @@ export function DataProvider({ children }: { children: ReactNode }) {
     recentPayments: members.filter(m => m.maintenanceStatus === 'paid').length,
   };
 
-  const loadMembersFromCSV = useCallback(async (url: string) => {
+  const syncFromGoogleSheet = useCallback(async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(url);
-      const csvText = await response.text();
-      
-      const lines = csvText.split('\n');
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, ''));
-      
-      const parsedMembers: User[] = lines.slice(1).filter(line => line.trim()).map((line, index) => {
-        const values = line.split(',').map(v => v.trim());
-        const memberData: Record<string, string> = {};
-        
-        headers.forEach((header, i) => {
-          memberData[header] = values[i] || '';
-        });
-
-        return {
-          memberId: memberData.memberid || `USR${String(index + 1).padStart(3, '0')}`,
-          name: memberData.name || 'Unknown',
-          email: memberData.email || '',
-          phone: memberData.phone || '',
-          flatNo: memberData.flatno || memberData.flat || '',
-          wing: memberData.wing || memberData.building || '',
-          role: (memberData.role?.toLowerCase() === 'manager' ? 'manager' : 'user') as 'manager' | 'user',
-          maintenanceStatus: (memberData.maintenancestatus?.toLowerCase() || 'pending') as 'paid' | 'pending' | 'overdue',
-          outstandingDues: parseFloat(memberData.outstandingdues) || 0,
-        };
+      const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
+        body: { action: 'read' }
       });
 
-      if (parsedMembers.length > 0) {
-        setMembers(parsedMembers);
+      if (error) {
+        console.error('Edge function error:', error);
+        throw error;
+      }
+
+      if (data?.success && data?.members?.length > 0) {
+        setMembers(data.members);
+        console.log(`Synced ${data.members.length} members from Google Sheet`);
+      } else {
+        console.warn('No members returned from sync, using fallback CSV fetch');
+        // Fallback to direct CSV fetch
+        const response = await fetch('https://docs.google.com/spreadsheets/d/1sQta9o2wRufsm9Kn7I9GRocNDviU-z9YgJb9m6uxIAo/export?format=csv');
+        const csvText = await response.text();
+        
+        const lines = csvText.split('\n');
+        const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, ''));
+        
+        const parsedMembers: User[] = lines.slice(1).filter(line => line.trim()).map((line, index) => {
+          const values = line.split(',').map(v => v.trim());
+          const memberData: Record<string, string> = {};
+          
+          headers.forEach((header, i) => {
+            memberData[header] = values[i] || '';
+          });
+
+          return {
+            memberId: memberData.memberid || `USR${String(index + 1).padStart(3, '0')}`,
+            name: memberData.name || 'Unknown',
+            email: memberData.email || '',
+            phone: memberData.phone || '',
+            flatNo: memberData.flatno || memberData.flat || '',
+            wing: memberData.wing || memberData.building || '',
+            role: (memberData.role?.toLowerCase() === 'manager' ? 'manager' : 'user') as 'manager' | 'user',
+            maintenanceStatus: (memberData.maintenancestatus?.toLowerCase() || 'pending') as 'paid' | 'pending' | 'overdue',
+            outstandingDues: parseFloat(memberData.outstandingdues) || 0,
+          };
+        });
+
+        if (parsedMembers.length > 0) {
+          setMembers(parsedMembers);
+        }
       }
     } catch (error) {
-      console.error('Failed to load CSV:', error);
+      console.error('Failed to sync from Google Sheet:', error);
     } finally {
       setIsLoading(false);
     }
@@ -322,10 +338,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return messages.filter(m => m.senderId === userId || m.receiverId === userId);
   }, [messages]);
 
-  // Load CSV on mount
+  // Load data on mount
   useEffect(() => {
-    loadMembersFromCSV(CSV_URL);
-  }, [loadMembersFromCSV]);
+    syncFromGoogleSheet();
+  }, [syncFromGoogleSheet]);
 
   return (
     <DataContext.Provider value={{
@@ -336,7 +352,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       bills,
       stats,
       isLoading,
-      loadMembersFromCSV,
+      syncFromGoogleSheet,
       addNotice,
       addComplaint,
       updateComplaintStatus,
