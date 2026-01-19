@@ -1,82 +1,275 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { User, UserRole, AuthState } from '@/types';
+import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { User as SupabaseUser, Session } from '@supabase/supabase-js';
+
+export type UserRole = 'manager' | 'user';
+
+export interface UserProfile {
+  id: string;
+  userId: string;
+  memberId?: string;
+  name: string;
+  email: string;
+  phone?: string;
+  flatNo?: string;
+  wing?: string;
+  avatarUrl?: string;
+  maintenanceStatus?: 'paid' | 'pending' | 'overdue';
+  outstandingDues?: number;
+  emergencyContact?: string;
+}
+
+export interface AuthState {
+  isAuthenticated: boolean;
+  user: UserProfile | null;
+  role: UserRole | null;
+  isLoading: boolean;
+}
 
 interface AuthContextType extends AuthState {
-  login: (email: string, password: string, role: UserRole) => Promise<boolean>;
-  logout: () => void;
-  updateUser: (updates: Partial<User>) => void;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  signup: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Demo users for testing
-const demoUsers: Record<string, User> = {
-  'manager@society.com': {
-    memberId: 'MGR001',
-    name: 'Rajesh Kumar',
-    email: 'manager@society.com',
-    phone: '+91 98765 43210',
-    flatNo: 'A-101',
-    wing: 'A',
-    role: 'manager',
-    maintenanceStatus: 'paid',
-    outstandingDues: 0,
-  },
-  'user@society.com': {
-    memberId: 'USR001',
-    name: 'Priya Sharma',
-    email: 'user@society.com',
-    phone: '+91 98765 12345',
-    flatNo: 'B-205',
-    wing: 'B',
-    role: 'user',
-    maintenanceStatus: 'pending',
-    outstandingDues: 5000,
-  },
-};
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [authState, setAuthState] = useState<AuthState>({
     isAuthenticated: false,
     user: null,
     role: null,
+    isLoading: true,
   });
 
-  const login = useCallback(async (email: string, password: string, role: UserRole): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
+  const fetchUserProfile = useCallback(async (userId: string): Promise<{ profile: UserProfile | null; role: UserRole | null }> => {
+    try {
+      // Fetch profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
 
-    const user = demoUsers[email.toLowerCase()];
-    
-    if (user && user.role === role && password === 'demo123') {
-      setAuthState({
-        isAuthenticated: true,
-        user,
-        role: user.role,
-      });
-      return true;
+      if (profileError) {
+        console.error('Profile fetch error:', profileError);
+        return { profile: null, role: null };
+      }
+
+      // Fetch role using RPC function
+      const { data: roleData, error: roleError } = await supabase
+        .rpc('get_user_role', { _user_id: userId });
+
+      const role: UserRole = roleError || !roleData ? 'user' : (roleData as UserRole);
+
+      const profile: UserProfile = {
+        id: profileData.id,
+        userId: profileData.user_id,
+        memberId: profileData.member_id,
+        name: profileData.name || '',
+        email: profileData.email || '',
+        phone: profileData.phone,
+        flatNo: profileData.flat_no,
+        wing: profileData.wing,
+        avatarUrl: profileData.avatar_url,
+      };
+
+      return { profile, role };
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      return { profile: null, role: null };
     }
-    
-    return false;
   }, []);
 
-  const logout = useCallback(() => {
+  useEffect(() => {
+    // Set up auth state listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.email);
+      
+      if (session?.user) {
+        // Use setTimeout to avoid potential race conditions
+        setTimeout(async () => {
+          const { profile, role } = await fetchUserProfile(session.user.id);
+          setAuthState({
+            isAuthenticated: true,
+            user: profile,
+            role,
+            isLoading: false,
+          });
+        }, 0);
+      } else {
+        setAuthState({
+          isAuthenticated: false,
+          user: null,
+          role: null,
+          isLoading: false,
+        });
+      }
+    });
+
+    // THEN check for existing session
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const { profile, role } = await fetchUserProfile(session.user.id);
+        setAuthState({
+          isAuthenticated: true,
+          user: profile,
+          role,
+          isLoading: false,
+        });
+      } else {
+        setAuthState(prev => ({ ...prev, isLoading: false }));
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [fetchUserProfile]);
+
+  const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // First validate email against Google Sheet
+      const { data: validationData, error: validationError } = await supabase.functions.invoke('validate-sheet-email', {
+        body: { email }
+      });
+
+      if (validationError || !validationData?.valid) {
+        return { 
+          success: false, 
+          error: validationData?.error || 'Email not found in society records. Please contact your manager.' 
+        };
+      }
+
+      // Attempt login
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        // If user doesn't exist, suggest signup
+        if (error.message.includes('Invalid login credentials')) {
+          return { 
+            success: false, 
+            error: 'Invalid credentials. If you\'re a new user, please sign up first.' 
+          };
+        }
+        return { success: false, error: error.message };
+      }
+
+      if (data.user) {
+        // Update profile with sheet data if available
+        if (validationData.member) {
+          await supabase
+            .from('profiles')
+            .update({
+              name: validationData.member.name || undefined,
+              phone: validationData.member.phone || undefined,
+              flat_no: validationData.member.flatNo || undefined,
+              wing: validationData.member.wing || undefined,
+            })
+            .eq('user_id', data.user.id);
+        }
+        return { success: true };
+      }
+
+      return { success: false, error: 'Login failed' };
+    } catch (error) {
+      console.error('Login error:', error);
+      return { success: false, error: 'An unexpected error occurred' };
+    }
+  }, []);
+
+  const signup = useCallback(async (email: string, password: string, name: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // First validate email against Google Sheet
+      const { data: validationData, error: validationError } = await supabase.functions.invoke('validate-sheet-email', {
+        body: { email }
+      });
+
+      if (validationError || !validationData?.valid) {
+        return { 
+          success: false, 
+          error: validationData?.error || 'Email not found in society records. Only registered society members can sign up.' 
+        };
+      }
+
+      // Sign up the user
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: window.location.origin,
+          data: {
+            name: validationData.member?.name || name,
+          }
+        }
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      if (data.user) {
+        // Update profile with sheet data
+        if (validationData.member) {
+          // Wait a moment for the trigger to create the profile
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          await supabase
+            .from('profiles')
+            .update({
+              name: validationData.member.name || name,
+              phone: validationData.member.phone || undefined,
+              flat_no: validationData.member.flatNo || undefined,
+              wing: validationData.member.wing || undefined,
+            })
+            .eq('user_id', data.user.id);
+        }
+        return { success: true };
+      }
+
+      return { success: false, error: 'Signup failed' };
+    } catch (error) {
+      console.error('Signup error:', error);
+      return { success: false, error: 'An unexpected error occurred' };
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
     setAuthState({
       isAuthenticated: false,
       user: null,
       role: null,
+      isLoading: false,
     });
   }, []);
 
-  const updateUser = useCallback((updates: Partial<User>) => {
-    setAuthState(prev => ({
-      ...prev,
-      user: prev.user ? { ...prev.user, ...updates } : null,
-    }));
-  }, []);
+  const updateProfile = useCallback(async (updates: Partial<UserProfile>) => {
+    if (!authState.user) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        name: updates.name,
+        phone: updates.phone,
+        flat_no: updates.flatNo,
+        wing: updates.wing,
+        avatar_url: updates.avatarUrl,
+      })
+      .eq('user_id', authState.user.userId);
+
+    if (!error) {
+      setAuthState(prev => ({
+        ...prev,
+        user: prev.user ? { ...prev.user, ...updates } : null,
+      }));
+    }
+  }, [authState.user]);
 
   return (
-    <AuthContext.Provider value={{ ...authState, login, logout, updateUser }}>
+    <AuthContext.Provider value={{ ...authState, login, signup, logout, updateProfile }}>
       {children}
     </AuthContext.Provider>
   );

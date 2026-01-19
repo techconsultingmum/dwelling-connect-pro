@@ -19,7 +19,7 @@ import {
 import { cn } from '@/lib/utils';
 
 export default function Profile() {
-  const { user, role, updateUser } = useAuth();
+  const { user, role, updateProfile } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     phone: user?.phone || '',
@@ -28,7 +28,7 @@ export default function Profile() {
   });
 
   const handleSave = () => {
-    updateUser(formData);
+    updateProfile(formData);
     setIsEditing(false);
   };
 

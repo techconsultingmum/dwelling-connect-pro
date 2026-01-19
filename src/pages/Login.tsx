@@ -1,40 +1,74 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { UserRole } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Building2, Shield, User, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Building2, Shield, User, Eye, EyeOff, Loader2, UserPlus, LogIn } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { login } = useAuth();
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const { login, signup, isLoading: authLoading } = useAuth();
+  const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRole) return;
-
     setIsLoading(true);
     setError('');
+    setSuccess('');
 
-    const success = await login(email, password, selectedRole);
+    const result = await login(email, password);
 
-    if (success) {
+    if (result.success) {
       navigate('/dashboard');
     } else {
-      setError('Invalid credentials. Please try again.');
+      setError(result.error || 'Login failed');
     }
 
     setIsLoading(false);
   };
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+    setSuccess('');
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      setIsLoading(false);
+      return;
+    }
+
+    const result = await signup(email, password, name);
+
+    if (result.success) {
+      setSuccess('Account created successfully! You can now log in.');
+      setActiveTab('login');
+      setPassword('');
+    } else {
+      setError(result.error || 'Signup failed');
+    }
+
+    setIsLoading(false);
+  };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -85,7 +119,7 @@ export default function Login() {
         </div>
       </div>
 
-      {/* Right Panel - Login Form */}
+      {/* Right Panel - Login/Signup Form */}
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="w-full max-w-md animate-fade-in">
           {/* Mobile Logo */}
@@ -99,126 +133,175 @@ export default function Login() {
             </div>
           </div>
 
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold mb-2">Welcome Back</h2>
-            <p className="text-muted-foreground">Sign in to your account to continue</p>
-          </div>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'login' | 'signup')} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="login" className="flex items-center gap-2">
+                <LogIn className="w-4 h-4" />
+                Sign In
+              </TabsTrigger>
+              <TabsTrigger value="signup" className="flex items-center gap-2">
+                <UserPlus className="w-4 h-4" />
+                Sign Up
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Role Selection */}
-          <div className="grid grid-cols-2 gap-4 mb-8">
-            <button
-              type="button"
-              onClick={() => setSelectedRole('manager')}
-              className={cn(
-                'p-4 rounded-xl border-2 transition-all duration-200 text-left',
-                selectedRole === 'manager'
-                  ? 'border-primary bg-primary/5 shadow-md'
-                  : 'border-border hover:border-primary/50'
-              )}
-            >
-              <div className={cn(
-                'w-10 h-10 rounded-lg flex items-center justify-center mb-3',
-                selectedRole === 'manager' ? 'bg-primary text-primary-foreground' : 'bg-muted'
-              )}>
-                <Shield className="w-5 h-5" />
+            <TabsContent value="login">
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold mb-2">Welcome Back</h2>
+                <p className="text-muted-foreground">Sign in with your registered email</p>
               </div>
-              <p className="font-semibold">Manager</p>
-              <p className="text-xs text-muted-foreground">Admin access</p>
-            </button>
 
-            <button
-              type="button"
-              onClick={() => setSelectedRole('user')}
-              className={cn(
-                'p-4 rounded-xl border-2 transition-all duration-200 text-left',
-                selectedRole === 'user'
-                  ? 'border-primary bg-primary/5 shadow-md'
-                  : 'border-border hover:border-primary/50'
-              )}
-            >
-              <div className={cn(
-                'w-10 h-10 rounded-lg flex items-center justify-center mb-3',
-                selectedRole === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted'
-              )}>
-                <User className="w-5 h-5" />
-              </div>
-              <p className="font-semibold">Member</p>
-              <p className="text-xs text-muted-foreground">Resident access</p>
-            </button>
-          </div>
+              <form onSubmit={handleLogin} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="login-email">Email Address</Label>
+                  <Input
+                    id="login-email"
+                    type="email"
+                    placeholder="Enter your registered email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="login-password">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="login-password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                {error && (
+                  <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                    {error}
+                  </div>
+                )}
+
+                {success && (
+                  <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-green-600 text-sm">
+                    {success}
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  variant="gradient"
+                  size="lg"
+                  className="w-full"
+                  disabled={isLoading}
                 >
-                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                </button>
-              </div>
-            </div>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Signing in...
+                    </>
+                  ) : (
+                    'Sign In'
+                  )}
+                </Button>
+              </form>
+            </TabsContent>
 
-            {error && (
-              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-                {error}
+            <TabsContent value="signup">
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold mb-2">Create Account</h2>
+                <p className="text-muted-foreground">Sign up with your society-registered email</p>
               </div>
-            )}
 
-            <Button
-              type="submit"
-              variant="gradient"
-              size="lg"
-              className="w-full"
-              disabled={!selectedRole || isLoading}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Signing in...
-                </>
-              ) : (
-                'Sign In'
-              )}
-            </Button>
-          </form>
+              <form onSubmit={handleSignup} className="space-y-5">
+                <div className="space-y-2">
+                  <Label htmlFor="signup-name">Full Name</Label>
+                  <Input
+                    id="signup-name"
+                    type="text"
+                    placeholder="Enter your full name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-email">Email Address</Label>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    placeholder="Enter your registered email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Must match your email in the society records
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="signup-password">Password</Label>
+                  <div className="relative">
+                    <Input
+                      id="signup-password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Create a password (min 6 characters)"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      minLength={6}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <Button
+                  type="submit"
+                  variant="gradient"
+                  size="lg"
+                  className="w-full"
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Creating account...
+                    </>
+                  ) : (
+                    'Create Account'
+                  )}
+                </Button>
+              </form>
+            </TabsContent>
+          </Tabs>
 
           <div className="mt-8 p-4 rounded-lg bg-muted/50 border border-border">
-            <p className="text-sm font-medium text-center mb-3">Demo Credentials</p>
-            <div className="grid grid-cols-2 gap-4 text-xs">
-              <div>
-                <p className="font-medium text-primary">Manager:</p>
-                <p className="text-muted-foreground">manager@society.com</p>
-                <p className="text-muted-foreground">demo123</p>
-              </div>
-              <div>
-                <p className="font-medium text-primary">Member:</p>
-                <p className="text-muted-foreground">user@society.com</p>
-                <p className="text-muted-foreground">demo123</p>
-              </div>
-            </div>
+            <p className="text-sm text-center text-muted-foreground">
+              Only emails registered in the society Google Sheet can sign up or log in.
+            </p>
           </div>
         </div>
       </div>
