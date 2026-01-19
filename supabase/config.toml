@@ -2,3 +2,6 @@ project_id = "wuailejxaqqlxcoqavct"
 
 [functions.google-sheets-sync]
 verify_jwt = false
+
+[functions.validate-sheet-email]
+verify_jwt = false
