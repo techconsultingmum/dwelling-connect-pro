@@ -40,7 +40,7 @@ import { User } from '@/types';
 
 export default function Members() {
   const { role } = useAuth();
-  const { members, isLoading, loadMembersFromCSV } = useData();
+  const { members, isLoading, syncFromGoogleSheet } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMember, setSelectedMember] = useState<User | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -58,7 +58,7 @@ export default function Members() {
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await loadMembersFromCSV('https://docs.google.com/spreadsheets/d/1sQta9o2wRufsm9Kn7I9GRocNDviU-z9YgJb9m6uxIAo/export?format=csv');
+    await syncFromGoogleSheet();
     setIsRefreshing(false);
   };
 
