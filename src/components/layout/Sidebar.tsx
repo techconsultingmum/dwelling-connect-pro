@@ -14,6 +14,8 @@ import {
   Menu,
   X,
   Building2,
+  UserCog,
+  User,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -28,11 +30,12 @@ interface NavItem {
 const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: Users, label: 'Members', path: '/members', managerOnly: true },
+  { icon: UserCog, label: 'User Management', path: '/admin/users', managerOnly: true },
   { icon: FileText, label: 'Notices', path: '/notices' },
   { icon: AlertCircle, label: 'Complaints', path: '/complaints' },
   { icon: MessageSquare, label: 'Chat', path: '/chat' },
   { icon: CreditCard, label: 'Payments', path: '/payments' },
-  { icon: Settings, label: 'Profile', path: '/profile' },
+  { icon: User, label: 'My Profile', path: '/profile' },
 ];
 
 export function Sidebar() {
