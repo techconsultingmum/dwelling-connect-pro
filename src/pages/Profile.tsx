@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -6,11 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   User, 
   Mail, 
   Phone, 
-  Home,
   Save,
   Shield,
   Building2,
@@ -19,13 +19,23 @@ import {
 import { cn } from '@/lib/utils';
 
 export default function Profile() {
-  const { user, role, updateProfile } = useAuth();
+  const { user, role, updateProfile, isLoading } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
-    phone: user?.phone || '',
-    email: user?.email || '',
-    emergencyContact: user?.emergencyContact || '',
+    phone: '',
+    email: '',
+    emergencyContact: '',
   });
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        phone: user.phone || '',
+        email: user.email || '',
+        emergencyContact: user.emergencyContact || '',
+      });
+    }
+  }, [user]);
 
   const handleSave = () => {
     updateProfile(formData);
@@ -33,6 +43,21 @@ export default function Profile() {
   };
 
   const isManager = role === 'manager';
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6 max-w-4xl mx-auto">
+          <Skeleton className="h-10 w-48" />
+          <Skeleton className="h-64 w-full" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Skeleton className="h-64 w-full" />
+            <Skeleton className="h-64 w-full" />
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>

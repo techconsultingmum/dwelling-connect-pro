@@ -163,6 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await supabase
             .from('profiles')
             .update({
+              member_id: validationData.member.memberId || undefined,
               name: validationData.member.name || undefined,
               phone: validationData.member.phone || undefined,
               flat_no: validationData.member.flatNo || undefined,
@@ -219,6 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await supabase
             .from('profiles')
             .update({
+              member_id: validationData.member.memberId || undefined,
               name: validationData.member.name || name,
               phone: validationData.member.phone || undefined,
               flat_no: validationData.member.flatNo || undefined,
