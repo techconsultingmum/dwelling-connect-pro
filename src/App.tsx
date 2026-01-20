@@ -14,6 +14,7 @@ import Complaints from "./pages/Complaints";
 import Chat from "./pages/Chat";
 import Payments from "./pages/Payments";
 import Profile from "./pages/Profile";
+import AdminUsers from "./pages/AdminUsers";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
               <Route path="/chat" element={<Chat />} />
               <Route path="/payments" element={<Payments />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/admin/users" element={<AdminUsers />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

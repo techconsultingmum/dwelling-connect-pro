@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.validate-sheet-email]
 verify_jwt = false
+
+[functions.manage-user-role]
+verify_jwt = false

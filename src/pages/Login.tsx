@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Building2, Shield, User, Eye, EyeOff, Loader2, UserPlus, LogIn } from 'lucide-react';
+import { Building2, Shield, User, Eye, EyeOff, Loader2, UserPlus, LogIn, ArrowLeft, Mail } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function Login() {
   const navigate = useNavigate();
   const { login, signup, isLoading: authLoading, isAuthenticated } = useAuth();
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -63,6 +65,35 @@ export default function Login() {
       setPassword('');
     } else {
       setError(result.error || 'Signup failed');
+    }
+
+    setIsLoading(false);
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setError('');
+    setSuccess('');
+
+    if (!email) {
+      setError('Please enter your email address');
+      setIsLoading(false);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/login`,
+      });
+
+      if (error) {
+        setError(error.message);
+      } else {
+        setSuccess('Password reset email sent! Check your inbox.');
+      }
+    } catch (err) {
+      setError('An error occurred. Please try again.');
     }
 
     setIsLoading(false);
@@ -152,74 +183,159 @@ export default function Login() {
             </TabsList>
 
             <TabsContent value="login">
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold mb-2">Welcome Back</h2>
-                <p className="text-muted-foreground">Sign in with your registered email</p>
-              </div>
+              {showForgotPassword ? (
+                <>
+                  <div className="text-center mb-6">
+                    <h2 className="text-2xl font-bold mb-2">Reset Password</h2>
+                    <p className="text-muted-foreground">Enter your email to receive a reset link</p>
+                  </div>
 
-              <form onSubmit={handleLogin} className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email Address</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="Enter your registered email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
+                  <form onSubmit={handleForgotPassword} className="space-y-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="reset-email">Email Address</Label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+                        <Input
+                          id="reset-email"
+                          type="email"
+                          placeholder="Enter your email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          className="pl-10"
+                          required
+                        />
+                      </div>
+                    </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="login-password"
-                      type={showPassword ? 'text' : 'password'}
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    {error && (
+                      <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                        {error}
+                      </div>
+                    )}
+
+                    {success && (
+                      <div className="p-3 rounded-lg bg-success/10 border border-success/20 text-success text-sm">
+                        {success}
+                      </div>
+                    )}
+
+                    <Button
+                      type="submit"
+                      variant="gradient"
+                      size="lg"
+                      className="w-full"
+                      disabled={isLoading}
                     >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
-                  </div>
-                </div>
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        'Send Reset Link'
+                      )}
+                    </Button>
 
-                {error && (
-                  <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
-                    {error}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="w-full gap-2"
+                      onClick={() => {
+                        setShowForgotPassword(false);
+                        setError('');
+                        setSuccess('');
+                      }}
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      Back to Sign In
+                    </Button>
+                  </form>
+                </>
+              ) : (
+                <>
+                  <div className="text-center mb-6">
+                    <h2 className="text-2xl font-bold mb-2">Welcome Back</h2>
+                    <p className="text-muted-foreground">Sign in with your registered email</p>
                   </div>
-                )}
 
-                {success && (
-                  <div className="p-3 rounded-lg bg-green-500/10 border border-green-500/20 text-green-600 text-sm">
-                    {success}
-                  </div>
-                )}
+                  <form onSubmit={handleLogin} className="space-y-5">
+                    <div className="space-y-2">
+                      <Label htmlFor="login-email">Email Address</Label>
+                      <Input
+                        id="login-email"
+                        type="email"
+                        placeholder="Enter your registered email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
+                    </div>
 
-                <Button
-                  type="submit"
-                  variant="gradient"
-                  size="lg"
-                  className="w-full"
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    'Sign In'
-                  )}
-                </Button>
-              </form>
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="login-password">Password</Label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowForgotPassword(true);
+                            setError('');
+                            setSuccess('');
+                          }}
+                          className="text-sm text-primary hover:underline"
+                        >
+                          Forgot password?
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <Input
+                          id="login-password"
+                          type={showPassword ? 'text' : 'password'}
+                          placeholder="Enter your password"
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                        >
+                          {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {error && (
+                      <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+                        {error}
+                      </div>
+                    )}
+
+                    {success && (
+                      <div className="p-3 rounded-lg bg-success/10 border border-success/20 text-success text-sm">
+                        {success}
+                      </div>
+                    )}
+
+                    <Button
+                      type="submit"
+                      variant="gradient"
+                      size="lg"
+                      className="w-full"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          Signing in...
+                        </>
+                      ) : (
+                        'Sign In'
+                      )}
+                    </Button>
+                  </form>
+                </>
+              )}
             </TabsContent>
 
             <TabsContent value="signup">
