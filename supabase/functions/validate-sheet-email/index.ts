@@ -8,11 +8,13 @@ const corsHeaders = {
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/1sQta9o2wRufsm9Kn7I9GRocNDviU-z9YgJb9m6uxIAo/export?format=csv';
 
 interface SheetMember {
+  memberId: string;
   email: string;
   name: string;
   phone: string;
   flatNo: string;
   wing: string;
+  maintenanceStatus: 'paid' | 'pending' | 'overdue';
 }
 
 async function fetchSheetEmails(): Promise<SheetMember[]> {
@@ -58,14 +60,26 @@ async function fetchSheetEmails(): Promise<SheetMember[]> {
     
     const email = memberData.emailaddress || memberData.email || '';
     const name = memberData['name(primarymember)'] || memberData.name || '';
+    const memberId = memberData.memberid || memberData['member id'] || memberData['sr.no.'] || `M${i.toString().padStart(3, '0')}`;
+    
+    // Parse maintenance status
+    const statusRaw = (memberData.maintenancestatus || memberData.status || '').toLowerCase().trim();
+    let maintenanceStatus: 'paid' | 'pending' | 'overdue' = 'pending';
+    if (statusRaw.includes('paid') || statusRaw.includes('clear')) {
+      maintenanceStatus = 'paid';
+    } else if (statusRaw.includes('overdue') || statusRaw.includes('due')) {
+      maintenanceStatus = 'overdue';
+    }
     
     if (email) {
       members.push({
+        memberId,
         email: email.toLowerCase().trim(),
         name,
         phone: memberData['contactnumber(primarymember)'] || memberData.phone || '',
         flatNo: memberData['flatno.'] || memberData.flatno || '',
         wing: memberData.wing || '',
+        maintenanceStatus,
       });
     }
   }
@@ -97,11 +111,13 @@ serve(async (req) => {
         JSON.stringify({ 
           valid: true, 
           member: {
+            memberId: member.memberId,
             name: member.name,
             email: member.email,
             phone: member.phone,
             flatNo: member.flatNo,
             wing: member.wing,
+            maintenanceStatus: member.maintenanceStatus,
           }
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
