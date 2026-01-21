@@ -1,12 +1,11 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
-import { User, Notice, Complaint, ChatMessage, MaintenanceBill, DashboardStats } from '@/types';
+import { User, Notice, Complaint, MaintenanceBill, DashboardStats } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 
 interface DataContextType {
   members: User[];
   notices: Notice[];
   complaints: Complaint[];
-  messages: ChatMessage[];
   bills: MaintenanceBill[];
   stats: DashboardStats;
   isLoading: boolean;
@@ -14,9 +13,6 @@ interface DataContextType {
   addNotice: (notice: Omit<Notice, 'id'>) => void;
   addComplaint: (complaint: Omit<Complaint, 'id' | 'createdAt' | 'updatedAt'>) => void;
   updateComplaintStatus: (id: string, status: Complaint['status']) => void;
-  sendMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => Promise<void>;
-  markMessageAsRead: (id: string) => void;
-  getUserMessages: (userId: string) => ChatMessage[];
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -87,51 +83,6 @@ const demoComplaints: Complaint[] = [
   },
 ];
 
-const demoMessages: ChatMessage[] = [
-  {
-    id: '1',
-    senderId: 'USR001',
-    senderName: 'Priya Sharma',
-    receiverId: 'MGR001',
-    message: 'Hello, I have a query about the upcoming maintenance charges.',
-    timestamp: '2026-01-14T10:30:00',
-    isRead: true,
-  },
-  {
-    id: '2',
-    senderId: 'MGR001',
-    senderName: 'Rajesh Kumar',
-    receiverId: 'USR001',
-    message: 'Hi Priya, sure! The maintenance for this quarter is ₹5,000. Is there anything specific you want to know?',
-    timestamp: '2026-01-14T10:35:00',
-    isRead: true,
-  },
-];
-
-const demoBills: MaintenanceBill[] = [
-  {
-    id: '1',
-    userId: 'USR001',
-    flatNo: 'B-205',
-    amount: 5000,
-    dueDate: '2026-01-31',
-    status: 'pending',
-    month: 'January',
-    year: 2026,
-  },
-  {
-    id: '2',
-    userId: 'USR001',
-    flatNo: 'B-205',
-    amount: 5000,
-    dueDate: '2025-12-31',
-    status: 'paid',
-    paidDate: '2025-12-28',
-    month: 'December',
-    year: 2025,
-  },
-];
-
 const demoMembers: User[] = [
   {
     memberId: 'USR001',
@@ -194,8 +145,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [members, setMembers] = useState<User[]>(demoMembers);
   const [notices, setNotices] = useState<Notice[]>(demoNotices);
   const [complaints, setComplaints] = useState<Complaint[]>(demoComplaints);
-  const [messages, setMessages] = useState<ChatMessage[]>(demoMessages);
-  const [bills] = useState<MaintenanceBill[]>(demoBills);
+  const [bills, setBills] = useState<MaintenanceBill[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const stats: DashboardStats = {
@@ -219,11 +169,20 @@ export function DataProvider({ children }: { children: ReactNode }) {
         throw error;
       }
 
-      if (data?.success && data?.members?.length > 0) {
-        setMembers(data.members);
-        console.log(`Synced ${data.members.length} members from Google Sheet`);
+      if (data?.success) {
+        // Sync members
+        if (data.members?.length > 0) {
+          setMembers(data.members);
+          console.log(`Synced ${data.members.length} members from Google Sheet`);
+        }
+        
+        // Sync bills if available
+        if (data.bills?.length > 0) {
+          setBills(data.bills);
+          console.log(`Synced ${data.bills.length} bills from Google Sheet`);
+        }
       } else {
-        console.warn('No members returned from sync, using fallback CSV fetch');
+        console.warn('No data returned from sync, using fallback CSV fetch');
         // Fallback to direct CSV fetch
         const response = await fetch('https://docs.google.com/spreadsheets/d/1sQta9o2wRufsm9Kn7I9GRocNDviU-z9YgJb9m6uxIAo/export?format=csv');
         const csvText = await response.text();
@@ -304,40 +263,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }).catch(console.error);
   }, []);
 
-  const sendMessage = useCallback(async (message: Omit<ChatMessage, 'id' | 'timestamp'>) => {
-    const newMessage: ChatMessage = {
-      ...message,
-      id: Date.now().toString(),
-      timestamp: new Date().toISOString(),
-    };
-    
-    setMessages(prev => [...prev, newMessage]);
-
-    // Send webhook
-    try {
-      await fetch(WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'chat_message',
-          ...newMessage,
-        }),
-      });
-    } catch (error) {
-      console.error('Webhook failed:', error);
-    }
-  }, []);
-
-  const markMessageAsRead = useCallback((id: string) => {
-    setMessages(prev => 
-      prev.map(m => m.id === id ? { ...m, isRead: true } : m)
-    );
-  }, []);
-
-  const getUserMessages = useCallback((userId: string) => {
-    return messages.filter(m => m.senderId === userId || m.receiverId === userId);
-  }, [messages]);
-
   // Load data on mount
   useEffect(() => {
     syncFromGoogleSheet();
@@ -348,7 +273,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
       members,
       notices,
       complaints,
-      messages,
       bills,
       stats,
       isLoading,
@@ -356,9 +280,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
       addNotice,
       addComplaint,
       updateComplaintStatus,
-      sendMessage,
-      markMessageAsRead,
-      getUserMessages,
     }}>
       {children}
     </DataContext.Provider>
