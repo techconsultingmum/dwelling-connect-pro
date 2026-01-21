@@ -3,7 +3,7 @@ import { useData } from '@/contexts/DataContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -22,15 +22,17 @@ import {
   AlertTriangle,
   Download,
   TrendingUp,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function Payments() {
   const { user, role } = useAuth();
-  const { bills, members, stats } = useData();
+  const { bills, members, stats, isLoading, syncFromGoogleSheet } = useData();
 
   const isManager = role === 'manager';
 
+  // Filter bills based on user role
   const userBills = isManager 
     ? bills 
     : bills.filter(b => b.userId === user?.memberId);
@@ -58,6 +60,10 @@ export default function Payments() {
     },
   };
 
+  const handleRefresh = () => {
+    syncFromGoogleSheet();
+  };
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -74,10 +80,21 @@ export default function Payments() {
                 : 'View your maintenance bills and payment history'}
             </p>
           </div>
-          <Button variant="outline" className="gap-2">
-            <Download className="w-4 h-4" />
-            Download Statement
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              className="gap-2"
+              onClick={handleRefresh}
+              disabled={isLoading}
+            >
+              <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+              Sync Data
+            </Button>
+            <Button variant="outline" className="gap-2">
+              <Download className="w-4 h-4" />
+              Download Statement
+            </Button>
+          </div>
         </div>
 
         {/* Stats */}
@@ -105,7 +122,7 @@ export default function Payments() {
               />
               <StatCard
                 title="Payment Rate"
-                value={`${Math.round((stats.recentPayments / stats.totalMembers) * 100)}%`}
+                value={`${stats.totalMembers > 0 ? Math.round((stats.recentPayments / stats.totalMembers) * 100) : 0}%`}
                 icon={CheckCircle2}
                 variant="default"
               />
@@ -139,7 +156,7 @@ export default function Payments() {
               <StatCard
                 title="Flat No"
                 value={user?.flatNo || 'N/A'}
-                subtitle={`Wing ${user?.wing}`}
+                subtitle={user?.wing ? `Wing ${user.wing}` : undefined}
                 icon={Calendar}
                 variant="default"
               />
@@ -168,85 +185,108 @@ export default function Payments() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {userBills.map((bill, index) => {
-                    const config = statusConfig[bill.status];
-                    const StatusIcon = config.icon;
-                    
-                    return (
-                      <TableRow 
-                        key={bill.id}
-                        className="animate-fade-in"
-                        style={{ animationDelay: `${index * 50}ms` }}
-                      >
+                  {isLoading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <TableRow key={i}>
                         {isManager && (
                           <TableCell>
                             <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                                <span className="text-xs font-semibold text-primary">
-                                  {members.find(m => m.memberId === bill.userId)?.name?.charAt(0) || '?'}
-                                </span>
-                              </div>
+                              <Skeleton className="w-8 h-8 rounded-full" />
                               <div>
-                                <p className="font-medium">
-                                  {members.find(m => m.memberId === bill.userId)?.name || 'Unknown'}
-                                </p>
-                                <p className="text-xs text-muted-foreground">{bill.flatNo}</p>
+                                <Skeleton className="h-4 w-24 mb-1" />
+                                <Skeleton className="h-3 w-16" />
                               </div>
                             </div>
                           </TableCell>
                         )}
-                        <TableCell>
-                          <span className="font-medium">{bill.month} {bill.year}</span>
-                        </TableCell>
-                        <TableCell>
-                          <span className="font-semibold">₹{bill.amount.toLocaleString()}</span>
-                        </TableCell>
-                        <TableCell>
-                          {new Date(bill.dueDate).toLocaleDateString('en-IN', {
-                            day: 'numeric',
-                            month: 'short',
-                            year: 'numeric',
-                          })}
-                        </TableCell>
-                        <TableCell>
-                          <span 
-                            className={cn(
-                              'px-2.5 py-1 rounded-full text-xs font-medium border flex items-center gap-1.5 w-fit',
-                              config.color
-                            )}
-                          >
-                            <StatusIcon className="w-3 h-3" />
-                            {bill.status.charAt(0).toUpperCase() + bill.status.slice(1)}
-                          </span>
-                        </TableCell>
-                        {!isManager && (
-                          <TableCell className="text-right">
-                            {bill.status !== 'paid' && (
-                              <Button size="sm" variant="gradient">
-                                Pay Now
-                              </Button>
-                            )}
-                            {bill.status === 'paid' && (
-                              <Button size="sm" variant="outline">
-                                Receipt
-                              </Button>
-                            )}
-                          </TableCell>
-                        )}
+                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-16" /></TableCell>
+                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                        <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+                        {!isManager && <TableCell><Skeleton className="h-8 w-20 ml-auto" /></TableCell>}
                       </TableRow>
-                    );
-                  })}
+                    ))
+                  ) : userBills.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={isManager ? 5 : 5} className="text-center py-20">
+                        <CreditCard className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
+                        <p className="text-lg font-medium">No payment records</p>
+                        <p className="text-muted-foreground">Payment history will appear here once synced from the sheet</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    userBills.map((bill, index) => {
+                      const config = statusConfig[bill.status];
+                      const StatusIcon = config.icon;
+                      
+                      return (
+                        <TableRow 
+                          key={bill.id}
+                          className="animate-fade-in"
+                          style={{ animationDelay: `${index * 50}ms` }}
+                        >
+                          {isManager && (
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                                  <span className="text-xs font-semibold text-primary">
+                                    {members.find(m => m.memberId === bill.userId)?.name?.charAt(0) || '?'}
+                                  </span>
+                                </div>
+                                <div>
+                                  <p className="font-medium">
+                                    {members.find(m => m.memberId === bill.userId)?.name || 'Unknown'}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">{bill.flatNo}</p>
+                                </div>
+                              </div>
+                            </TableCell>
+                          )}
+                          <TableCell>
+                            <span className="font-medium">{bill.month} {bill.year}</span>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-semibold">₹{bill.amount.toLocaleString()}</span>
+                          </TableCell>
+                          <TableCell>
+                            {new Date(bill.dueDate).toLocaleDateString('en-IN', {
+                              day: 'numeric',
+                              month: 'short',
+                              year: 'numeric',
+                            })}
+                          </TableCell>
+                          <TableCell>
+                            <span 
+                              className={cn(
+                                'px-2.5 py-1 rounded-full text-xs font-medium border flex items-center gap-1.5 w-fit',
+                                config.color
+                              )}
+                            >
+                              <StatusIcon className="w-3 h-3" />
+                              {bill.status.charAt(0).toUpperCase() + bill.status.slice(1)}
+                            </span>
+                          </TableCell>
+                          {!isManager && (
+                            <TableCell className="text-right">
+                              {bill.status !== 'paid' && (
+                                <Button size="sm" variant="gradient">
+                                  Pay Now
+                                </Button>
+                              )}
+                              {bill.status === 'paid' && (
+                                <Button size="sm" variant="outline">
+                                  Receipt
+                                </Button>
+                              )}
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      );
+                    })
+                  )}
                 </TableBody>
               </Table>
             </div>
-
-            {userBills.length === 0 && (
-              <div className="text-center py-20">
-                <CreditCard className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
-                <p className="text-lg font-medium">No payment records</p>
-                <p className="text-muted-foreground">Payment history will appear here</p>
-              </div>
-            )}
           </CardContent>
         </Card>
       </div>

@@ -1,40 +1,45 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useData } from '@/contexts/DataContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   MessageSquare, 
   Send, 
   User,
   Circle,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ChatMessage } from '@/types';
+import { useRealtimeChat, useChatPartners } from '@/hooks/useRealtimeChat';
 
 export default function Chat() {
   const { user, role } = useAuth();
-  const { messages, sendMessage, members, getUserMessages, markMessageAsRead } = useData();
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isManager = role === 'manager';
+  const { partners, isLoading: partnersLoading } = useChatPartners();
+  
+  // For regular users, find the manager to chat with
+  const managerPartner = useMemo(() => {
+    if (!isManager && partners.length > 0) {
+      // In a real scenario, we'd identify managers differently
+      // For now, let the user select from available people
+      return partners[0];
+    }
+    return null;
+  }, [isManager, partners]);
 
-  // For managers: show list of members they've chatted with or can chat with
-  // For users: chat directly with manager
-  const chatPartnerId = isManager ? selectedChat : 'MGR001';
-  const chatMessages = chatPartnerId ? getUserMessages(isManager ? chatPartnerId : user?.memberId || '') : [];
-
-  // Filter messages for the selected conversation
-  const conversationMessages = chatMessages.filter(m => 
-    (m.senderId === user?.memberId && m.receiverId === chatPartnerId) ||
-    (m.senderId === chatPartnerId && m.receiverId === user?.memberId)
-  ).sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  // Auto-select first partner for non-managers or use selected
+  const chatPartnerId = isManager ? selectedChat : (selectedChat || managerPartner?.userId || null);
+  
+  const { messages, isLoading: messagesLoading, sendMessage, markAsRead } = useRealtimeChat(chatPartnerId);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -42,20 +47,23 @@ export default function Chat() {
 
   useEffect(() => {
     scrollToBottom();
-  }, [conversationMessages]);
+  }, [messages]);
+
+  // Mark messages as read when viewing
+  useEffect(() => {
+    if (chatPartnerId) {
+      markAsRead();
+    }
+  }, [chatPartnerId, markAsRead, messages]);
 
   const handleSend = async () => {
     if (!newMessage.trim() || !chatPartnerId) return;
 
     setIsSending(true);
-    await sendMessage({
-      senderId: user?.memberId || '',
-      senderName: user?.name || '',
-      receiverId: chatPartnerId,
-      message: newMessage.trim(),
-      isRead: false,
-    });
-    setNewMessage('');
+    const success = await sendMessage(newMessage);
+    if (success) {
+      setNewMessage('');
+    }
     setIsSending(false);
   };
 
@@ -66,15 +74,15 @@ export default function Chat() {
     }
   };
 
-  // Get unique chat partners for manager
-  const chatPartners = isManager 
-    ? members.filter(m => m.role === 'user')
-    : [];
+  // Get partner name for display
+  const getPartnerName = (partnerId: string) => {
+    const partner = partners.find(p => p.userId === partnerId);
+    return partner?.name || 'Unknown';
+  };
 
-  const getUnreadCount = (partnerId: string) => {
-    return messages.filter(
-      m => m.senderId === partnerId && m.receiverId === user?.memberId && !m.isRead
-    ).length;
+  const getPartnerFlat = (partnerId: string) => {
+    const partner = partners.find(p => p.userId === partnerId);
+    return partner?.flatNo || '';
   };
 
   return (
@@ -89,28 +97,44 @@ export default function Chat() {
           <p className="text-muted-foreground mt-1">
             {isManager 
               ? 'Communicate with society members'
-              : 'Chat with society management'}
+              : 'Chat with society members and management'}
           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 h-[calc(100vh-220px)]">
-          {/* Chat List (Manager only) */}
-          {isManager && (
-            <Card className="lg:col-span-1">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Members</CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <ScrollArea className="h-[calc(100vh-340px)]">
-                  <div className="p-2 space-y-1">
-                    {chatPartners.map((partner) => {
-                      const unreadCount = getUnreadCount(partner.memberId);
-                      const isSelected = selectedChat === partner.memberId;
+          {/* Chat List */}
+          <Card className="lg:col-span-1">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg">
+                {isManager ? 'Members' : 'Contacts'}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ScrollArea className="h-[calc(100vh-340px)]">
+                <div className="p-2 space-y-1">
+                  {partnersLoading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} className="flex items-center gap-3 p-3">
+                        <Skeleton className="w-10 h-10 rounded-full" />
+                        <div className="flex-1">
+                          <Skeleton className="h-4 w-24 mb-1" />
+                          <Skeleton className="h-3 w-16" />
+                        </div>
+                      </div>
+                    ))
+                  ) : partners.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <User className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">No contacts available</p>
+                    </div>
+                  ) : (
+                    partners.map((partner) => {
+                      const isSelected = chatPartnerId === partner.userId;
                       
                       return (
                         <button
-                          key={partner.memberId}
-                          onClick={() => setSelectedChat(partner.memberId)}
+                          key={partner.userId}
+                          onClick={() => setSelectedChat(partner.userId)}
                           className={cn(
                             'w-full flex items-center gap-3 p-3 rounded-lg transition-all text-left',
                             isSelected
@@ -130,9 +154,9 @@ export default function Chat() {
                                 {partner.name.charAt(0)}
                               </span>
                             </div>
-                            {unreadCount > 0 && (
+                            {partner.unreadCount > 0 && (
                               <span className="absolute -top-1 -right-1 w-5 h-5 bg-destructive text-destructive-foreground text-xs rounded-full flex items-center justify-center">
-                                {unreadCount}
+                                {partner.unreadCount}
                               </span>
                             )}
                           </div>
@@ -142,45 +166,40 @@ export default function Chat() {
                               'text-xs truncate',
                               isSelected ? 'text-primary-foreground/70' : 'text-muted-foreground'
                             )}>
-                              {partner.flatNo} • Wing {partner.wing}
+                              {partner.flatNo || 'No flat assigned'}
                             </p>
                           </div>
                         </button>
                       );
-                    })}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          )}
+                    })
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
 
           {/* Chat Window */}
-          <Card className={cn(
-            'flex flex-col',
-            isManager ? 'lg:col-span-3' : 'lg:col-span-4'
-          )}>
+          <Card className="lg:col-span-3 flex flex-col">
             {/* Chat Header */}
             <CardHeader className="pb-3 border-b">
-              {(isManager && selectedChat) || (!isManager) ? (
+              {chatPartnerId ? (
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                     <User className="w-5 h-5 text-primary" />
                   </div>
                   <div>
                     <CardTitle className="text-lg">
-                      {isManager 
-                        ? members.find(m => m.memberId === selectedChat)?.name 
-                        : 'Society Manager'}
+                      {getPartnerName(chatPartnerId)}
                     </CardTitle>
                     <p className="text-sm text-muted-foreground flex items-center gap-1">
                       <Circle className="w-2 h-2 fill-success text-success" />
-                      Online
+                      {getPartnerFlat(chatPartnerId) || 'Online'}
                     </p>
                   </div>
                 </div>
               ) : (
                 <div className="text-center py-4">
-                  <p className="text-muted-foreground">Select a member to start chatting</p>
+                  <p className="text-muted-foreground">Select a contact to start chatting</p>
                 </div>
               )}
             </CardHeader>
@@ -188,17 +207,21 @@ export default function Chat() {
             {/* Messages */}
             <CardContent className="flex-1 p-0 overflow-hidden">
               <ScrollArea className="h-[calc(100vh-420px)] p-4">
-                {((isManager && selectedChat) || !isManager) ? (
+                {chatPartnerId ? (
                   <div className="space-y-4">
-                    {conversationMessages.length === 0 ? (
+                    {messagesLoading ? (
+                      <div className="flex justify-center py-8">
+                        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                      </div>
+                    ) : messages.length === 0 ? (
                       <div className="text-center py-12 text-muted-foreground">
                         <MessageSquare className="w-12 h-12 mx-auto mb-3 opacity-50" />
                         <p>No messages yet</p>
                         <p className="text-sm">Start a conversation!</p>
                       </div>
                     ) : (
-                      conversationMessages.map((msg, index) => {
-                        const isOwn = msg.senderId === user?.memberId;
+                      messages.map((msg, index) => {
+                        const isOwn = msg.sender_id === user?.userId;
                         return (
                           <div
                             key={msg.id}
@@ -206,18 +229,20 @@ export default function Chat() {
                               'flex animate-scale-in',
                               isOwn ? 'justify-end' : 'justify-start'
                             )}
-                            style={{ animationDelay: `${index * 50}ms` }}
+                            style={{ animationDelay: `${index * 30}ms` }}
                           >
                             <div className={cn(
-                              'max-w-[70%]',
-                              isOwn ? 'chat-bubble-user' : 'chat-bubble-other'
+                              'max-w-[70%] px-4 py-2 rounded-2xl',
+                              isOwn 
+                                ? 'bg-primary text-primary-foreground rounded-br-md' 
+                                : 'bg-muted rounded-bl-md'
                             )}>
                               <p>{msg.message}</p>
                               <p className={cn(
                                 'text-xs mt-1 opacity-70',
                                 isOwn ? 'text-right' : 'text-left'
                               )}>
-                                {new Date(msg.timestamp).toLocaleTimeString('en-IN', {
+                                {new Date(msg.created_at).toLocaleTimeString('en-IN', {
                                   hour: '2-digit',
                                   minute: '2-digit',
                                 })}
@@ -234,7 +259,7 @@ export default function Chat() {
                     <div className="text-center text-muted-foreground">
                       <MessageSquare className="w-16 h-16 mx-auto mb-4 opacity-50" />
                       <p className="text-lg font-medium">Select a conversation</p>
-                      <p className="text-sm">Choose a member from the list to start chatting</p>
+                      <p className="text-sm">Choose a contact from the list to start chatting</p>
                     </div>
                   </div>
                 )}
@@ -242,7 +267,7 @@ export default function Chat() {
             </CardContent>
 
             {/* Message Input */}
-            {((isManager && selectedChat) || !isManager) && (
+            {chatPartnerId && (
               <div className="p-4 border-t">
                 <div className="flex gap-3">
                   <Input
@@ -258,7 +283,11 @@ export default function Chat() {
                     onClick={handleSend}
                     disabled={!newMessage.trim() || isSending}
                   >
-                    <Send className="w-5 h-5" />
+                    {isSending ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Send className="w-5 h-5" />
+                    )}
                   </Button>
                 </div>
               </div>

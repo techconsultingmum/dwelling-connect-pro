@@ -19,9 +19,21 @@ interface Member {
   outstandingDues: number;
 }
 
-function parseCSV(csvText: string): Member[] {
+interface MaintenanceBill {
+  id: string;
+  userId: string;
+  flatNo: string;
+  amount: number;
+  dueDate: string;
+  status: 'paid' | 'pending' | 'overdue';
+  paidDate?: string;
+  month: string;
+  year: number;
+}
+
+function parseCSV(csvText: string): { members: Member[]; bills: MaintenanceBill[] } {
   const lines = csvText.split('\n');
-  if (lines.length < 2) return [];
+  if (lines.length < 2) return { members: [], bills: [] };
   
   // Parse headers - normalize them
   const headers = lines[0].split(',').map(h => 
@@ -31,6 +43,10 @@ function parseCSV(csvText: string): Member[] {
   console.log('Parsed headers:', headers);
   
   const members: Member[] = [];
+  const bills: MaintenanceBill[] = [];
+  const currentDate = new Date();
+  const currentMonth = currentDate.toLocaleString('default', { month: 'long' });
+  const currentYear = currentDate.getFullYear();
   
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -58,35 +74,69 @@ function parseCSV(csvText: string): Member[] {
       memberData[header] = values[idx] || '';
     });
     
-    console.log('Row data:', memberData);
-    
     // Map to Member interface with actual Google Sheet column names
-    // Columns: name(primarymember), contactnumber(primarymember), emailaddress, flatno., wing, owner/tenant, etc.
+    const memberId = `USR${String(i).padStart(3, '0')}`;
+    const maintenanceStatus = parseMaintenanceStatus(memberData.maintenancestatus || memberData.status || 'pending');
+    const outstandingDues = parseFloat(memberData.outstandingdues || memberData.dues || memberData.amount || '0') || 0;
+    const flatNo = memberData['flatno.'] || memberData.flatno || memberData.flat || '';
+    
     const member: Member = {
-      memberId: `USR${String(i).padStart(3, '0')}`,
+      memberId,
       name: memberData['name(primarymember)'] || memberData.name || 'Unknown',
       email: memberData.emailaddress || memberData.email || '',
       phone: memberData['contactnumber(primarymember)'] || memberData.phone || '',
-      flatNo: memberData['flatno.'] || memberData.flatno || memberData.flat || '',
+      flatNo,
       wing: memberData.wing || '',
-      role: 'user' as 'manager' | 'user',
-      maintenanceStatus: 'pending' as 'paid' | 'pending' | 'overdue',
-      outstandingDues: 0,
+      role: 'user',
+      maintenanceStatus,
+      outstandingDues,
     };
     
     // Skip rows without a name
     if (member.name && member.name !== 'Unknown') {
       members.push(member);
+      
+      // Create maintenance bill for this member
+      if (outstandingDues > 0 || maintenanceStatus !== 'paid') {
+        const bill: MaintenanceBill = {
+          id: `BILL-${memberId}-${currentYear}-${i}`,
+          userId: memberId,
+          flatNo,
+          amount: outstandingDues > 0 ? outstandingDues : 5000, // Default maintenance amount
+          dueDate: new Date(currentYear, currentDate.getMonth(), 15).toISOString().split('T')[0],
+          status: maintenanceStatus,
+          month: currentMonth,
+          year: currentYear,
+        };
+        bills.push(bill);
+      }
+      
+      // Add previous month bill if marked as paid
+      if (maintenanceStatus === 'paid') {
+        const prevMonth = new Date(currentYear, currentDate.getMonth() - 1, 1);
+        const bill: MaintenanceBill = {
+          id: `BILL-${memberId}-${prevMonth.getFullYear()}-${prevMonth.getMonth()}-${i}`,
+          userId: memberId,
+          flatNo,
+          amount: 5000,
+          dueDate: new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 15).toISOString().split('T')[0],
+          status: 'paid',
+          paidDate: new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 10).toISOString().split('T')[0],
+          month: prevMonth.toLocaleString('default', { month: 'long' }),
+          year: prevMonth.getFullYear(),
+        };
+        bills.push(bill);
+      }
     }
   }
   
-  return members;
+  return { members, bills };
 }
 
 function parseMaintenanceStatus(status: string): 'paid' | 'pending' | 'overdue' {
   const normalized = status.toLowerCase().trim();
-  if (normalized === 'paid' || normalized === 'clear') return 'paid';
-  if (normalized === 'overdue' || normalized === 'late') return 'overdue';
+  if (normalized === 'paid' || normalized === 'clear' || normalized === 'yes') return 'paid';
+  if (normalized === 'overdue' || normalized === 'late' || normalized === 'no') return 'overdue';
   return 'pending';
 }
 
@@ -97,7 +147,7 @@ serve(async (req) => {
   }
 
   try {
-    const { action, data } = await req.json().catch(() => ({ action: 'read', data: null }));
+    const { action } = await req.json().catch(() => ({ action: 'read' }));
 
     if (action === 'read') {
       // Fetch CSV from Google Sheets
@@ -108,23 +158,21 @@ serve(async (req) => {
       }
       
       const csvText = await response.text();
-      const members = parseCSV(csvText);
+      const { members, bills } = parseCSV(csvText);
       
-      console.log(`Parsed ${members.length} members from CSV`);
+      console.log(`Parsed ${members.length} members and ${bills.length} bills from CSV`);
       
       return new Response(
-        JSON.stringify({ success: true, members }),
+        JSON.stringify({ success: true, members, bills }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (action === 'write') {
-      // Note: Writing to Google Sheets requires OAuth or Service Account
-      // For now, return a message about the requirement
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: 'Write operations require Google Service Account credentials. Please add GOOGLE_SERVICE_ACCOUNT_KEY secret to enable write functionality.',
+          message: 'Write operations require Google Service Account credentials.',
           requiresSecret: true
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
