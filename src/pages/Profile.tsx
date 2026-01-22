@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDemo } from '@/contexts/DemoContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,9 +18,24 @@ import {
   Edit,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
+
+// Demo user data
+const demoProfileUser = {
+  memberId: 'DEMO001',
+  name: 'Demo User',
+  email: 'demo@example.com',
+  phone: '+91 98765 00000',
+  flatNo: '101',
+  wing: 'A',
+  maintenanceStatus: 'pending' as const,
+  outstandingDues: 5000,
+  emergencyContact: '+91 98765 11111',
+};
 
 export default function Profile() {
   const { user, role, updateProfile, isLoading } = useAuth();
+  const { isDemoMode } = useDemo();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     phone: '',
@@ -27,22 +43,28 @@ export default function Profile() {
     emergencyContact: '',
   });
 
+  // Use demo user in demo mode
+  const currentUser = isDemoMode ? demoProfileUser : user;
+  const isManager = isDemoMode ? true : role === 'manager';
+
   useEffect(() => {
-    if (user) {
+    if (currentUser) {
       setFormData({
-        phone: user.phone || '',
-        email: user.email || '',
-        emergencyContact: user.emergencyContact || '',
+        phone: currentUser.phone || '',
+        email: currentUser.email || '',
+        emergencyContact: currentUser.emergencyContact || '',
       });
     }
-  }, [user]);
+  }, [currentUser]);
 
   const handleSave = () => {
-    updateProfile(formData);
+    if (isDemoMode) {
+      toast.success('Profile updated (demo mode)');
+    } else {
+      updateProfile(formData);
+    }
     setIsEditing(false);
   };
-
-  const isManager = role === 'manager';
 
   if (isLoading) {
     return (
@@ -79,7 +101,7 @@ export default function Profile() {
             <div className="absolute -bottom-12 left-8">
               <div className="w-24 h-24 rounded-2xl bg-card border-4 border-card shadow-lg flex items-center justify-center">
                 <span className="text-3xl font-bold text-primary">
-                  {user?.name?.charAt(0) || 'U'}
+                  {currentUser?.name?.charAt(0) || 'U'}
                 </span>
               </div>
             </div>
@@ -88,13 +110,13 @@ export default function Profile() {
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
               <div>
                 <div className="flex items-center gap-3 mb-1">
-                  <h2 className="text-2xl font-bold">{user?.name}</h2>
+                  <h2 className="text-2xl font-bold">{currentUser?.name}</h2>
                   <Badge variant={isManager ? 'default' : 'secondary'} className="gap-1">
                     <Shield className="w-3 h-3" />
                     {isManager ? 'Manager' : 'Member'}
                   </Badge>
                 </div>
-                <p className="text-muted-foreground">{user?.memberId}</p>
+                <p className="text-muted-foreground">{currentUser?.memberId}</p>
               </div>
               <Button
                 variant={isEditing ? 'outline' : 'gradient'}
@@ -122,7 +144,7 @@ export default function Profile() {
                 <Label htmlFor="name">Full Name</Label>
                 <Input
                   id="name"
-                  value={user?.name || ''}
+                  value={currentUser?.name || ''}
                   disabled
                   className="bg-muted"
                 />
@@ -134,7 +156,7 @@ export default function Profile() {
                   <Input
                     id="email"
                     type="email"
-                    value={isEditing ? formData.email : user?.email || ''}
+                    value={isEditing ? formData.email : currentUser?.email || ''}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     disabled={!isEditing}
                     className={cn('pl-10', !isEditing && 'bg-muted')}
@@ -147,7 +169,7 @@ export default function Profile() {
                   <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                   <Input
                     id="phone"
-                    value={isEditing ? formData.phone : user?.phone || ''}
+                    value={isEditing ? formData.phone : currentUser?.phone || ''}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     disabled={!isEditing}
                     className={cn('pl-10', !isEditing && 'bg-muted')}
@@ -159,7 +181,7 @@ export default function Profile() {
                 <Input
                   id="emergency"
                   placeholder="Enter emergency contact"
-                  value={isEditing ? formData.emergencyContact : user?.emergencyContact || ''}
+                  value={isEditing ? formData.emergencyContact : currentUser?.emergencyContact || ''}
                   onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
                   disabled={!isEditing}
                   className={!isEditing ? 'bg-muted' : ''}
@@ -181,11 +203,11 @@ export default function Profile() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-lg bg-muted/50 space-y-1">
                   <p className="text-sm text-muted-foreground">Flat Number</p>
-                  <p className="text-xl font-bold">{user?.flatNo}</p>
+                  <p className="text-xl font-bold">{currentUser?.flatNo}</p>
                 </div>
                 <div className="p-4 rounded-lg bg-muted/50 space-y-1">
                   <p className="text-sm text-muted-foreground">Wing</p>
-                  <p className="text-xl font-bold">{user?.wing}</p>
+                  <p className="text-xl font-bold">{currentUser?.wing}</p>
                 </div>
               </div>
               
@@ -194,28 +216,28 @@ export default function Profile() {
                   <span className="text-sm text-muted-foreground">Maintenance Status</span>
                   <Badge 
                     variant={
-                      user?.maintenanceStatus === 'paid' 
+                      currentUser?.maintenanceStatus === 'paid' 
                         ? 'default'
-                        : user?.maintenanceStatus === 'overdue'
+                        : currentUser?.maintenanceStatus === 'overdue'
                         ? 'destructive'
                         : 'secondary'
                     }
                     className={cn(
-                      user?.maintenanceStatus === 'paid' && 'bg-success hover:bg-success/90'
+                      currentUser?.maintenanceStatus === 'paid' && 'bg-success hover:bg-success/90'
                     )}
                   >
-                    {user?.maintenanceStatus}
+                    {currentUser?.maintenanceStatus}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Outstanding Dues</span>
                   <span className={cn(
                     'font-bold',
-                    user?.outstandingDues && user.outstandingDues > 0 
+                    currentUser?.outstandingDues && currentUser.outstandingDues > 0 
                       ? 'text-destructive' 
                       : 'text-success'
                   )}>
-                    ₹{user?.outstandingDues?.toLocaleString() || 0}
+                    ₹{currentUser?.outstandingDues?.toLocaleString() || 0}
                   </span>
                 </div>
               </div>

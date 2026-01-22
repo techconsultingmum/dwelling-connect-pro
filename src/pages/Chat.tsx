@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDemo } from '@/contexts/DemoContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,23 +15,50 @@ import {
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useRealtimeChat, useChatPartners } from '@/hooks/useRealtimeChat';
+import { useRealtimeChat, useChatPartners, Message } from '@/hooks/useRealtimeChat';
+
+// Demo chat partners
+const demoChatPartners = [
+  { userId: 'demo-001', name: 'Rajesh Kumar', flatNo: 'A-101', unreadCount: 2 },
+  { userId: 'demo-002', name: 'Priya Sharma', flatNo: 'B-205', unreadCount: 0 },
+  { userId: 'demo-003', name: 'Amit Patel', flatNo: 'A-302', unreadCount: 1 },
+  { userId: 'demo-004', name: 'Sneha Reddy', flatNo: 'C-101', unreadCount: 0 },
+];
+
+// Demo messages
+const demoMessages: Record<string, Message[]> = {
+  'demo-001': [
+    { id: '1', sender_id: 'demo-001', receiver_id: 'demo-me', message: 'Hi, when is the next society meeting?', is_read: true, created_at: new Date(Date.now() - 3600000).toISOString() },
+    { id: '2', sender_id: 'demo-me', receiver_id: 'demo-001', message: 'The next meeting is scheduled for Saturday at 5 PM.', is_read: true, created_at: new Date(Date.now() - 3500000).toISOString() },
+    { id: '3', sender_id: 'demo-001', receiver_id: 'demo-me', message: 'Great, thank you!', is_read: false, created_at: new Date(Date.now() - 1800000).toISOString() },
+  ],
+  'demo-002': [
+    { id: '4', sender_id: 'demo-002', receiver_id: 'demo-me', message: 'Hello, I wanted to report a water leakage in my bathroom.', is_read: true, created_at: new Date(Date.now() - 86400000).toISOString() },
+    { id: '5', sender_id: 'demo-me', receiver_id: 'demo-002', message: 'Thank you for reporting. Our plumber will visit tomorrow morning.', is_read: true, created_at: new Date(Date.now() - 82800000).toISOString() },
+  ],
+  'demo-003': [
+    { id: '6', sender_id: 'demo-003', receiver_id: 'demo-me', message: 'Can you please share the maintenance bill details?', is_read: false, created_at: new Date(Date.now() - 7200000).toISOString() },
+  ],
+};
 
 export default function Chat() {
   const { user, role } = useAuth();
+  const { isDemoMode } = useDemo();
   const [selectedChat, setSelectedChat] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
+  const [demoMsgs, setDemoMsgs] = useState(demoMessages);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const isManager = role === 'manager';
-  const { partners, isLoading: partnersLoading } = useChatPartners();
+  const isManager = isDemoMode ? true : role === 'manager';
+  const { partners: realPartners, isLoading: partnersLoading } = useChatPartners();
+  
+  // Use demo partners in demo mode
+  const partners = isDemoMode ? demoChatPartners : realPartners;
   
   // For regular users, find the manager to chat with
   const managerPartner = useMemo(() => {
     if (!isManager && partners.length > 0) {
-      // In a real scenario, we'd identify managers differently
-      // For now, let the user select from available people
       return partners[0];
     }
     return null;
@@ -39,7 +67,11 @@ export default function Chat() {
   // Auto-select first partner for non-managers or use selected
   const chatPartnerId = isManager ? selectedChat : (selectedChat || managerPartner?.userId || null);
   
-  const { messages, isLoading: messagesLoading, sendMessage, markAsRead } = useRealtimeChat(chatPartnerId);
+  const { messages: realMessages, isLoading: messagesLoading, sendMessage: realSendMessage, markAsRead } = useRealtimeChat(isDemoMode ? null : chatPartnerId);
+  
+  // Use demo messages in demo mode
+  const messages = isDemoMode ? (chatPartnerId ? demoMsgs[chatPartnerId] || [] : []) : realMessages;
+  const currentUserId = isDemoMode ? 'demo-me' : user?.userId;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -60,7 +92,27 @@ export default function Chat() {
     if (!newMessage.trim() || !chatPartnerId) return;
 
     setIsSending(true);
-    const success = await sendMessage(newMessage);
+    
+    if (isDemoMode) {
+      // Add demo message locally
+      const newMsg: Message = {
+        id: Date.now().toString(),
+        sender_id: currentUserId!,
+        receiver_id: chatPartnerId,
+        message: newMessage.trim(),
+        is_read: false,
+        created_at: new Date().toISOString(),
+      };
+      setDemoMsgs(prev => ({
+        ...prev,
+        [chatPartnerId]: [...(prev[chatPartnerId] || []), newMsg],
+      }));
+      setNewMessage('');
+      setIsSending(false);
+      return;
+    }
+
+    const success = await realSendMessage(newMessage);
     if (success) {
       setNewMessage('');
     }
@@ -209,7 +261,7 @@ export default function Chat() {
               <ScrollArea className="h-[calc(100vh-420px)] p-4">
                 {chatPartnerId ? (
                   <div className="space-y-4">
-                    {messagesLoading ? (
+                    {messagesLoading && !isDemoMode ? (
                       <div className="flex justify-center py-8">
                         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                       </div>
@@ -221,7 +273,7 @@ export default function Chat() {
                       </div>
                     ) : (
                       messages.map((msg, index) => {
-                        const isOwn = msg.sender_id === user?.userId;
+                        const isOwn = msg.sender_id === currentUserId;
                         return (
                           <div
                             key={msg.id}
