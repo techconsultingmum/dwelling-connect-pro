@@ -1,6 +1,7 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { useDemo } from '@/contexts/DemoContext';
 import { 
   Building2, 
   Users, 
@@ -10,6 +11,7 @@ import {
   FileText,
   ArrowRight,
   CheckCircle2,
+  Play,
 } from 'lucide-react';
 
 const features = [
@@ -46,6 +48,14 @@ const features = [
 ];
 
 export default function Index() {
+  const navigate = useNavigate();
+  const { enterDemoMode } = useDemo();
+
+  const handleViewDemo = () => {
+    enterDemoMode();
+    navigate('/dashboard');
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Hero Section */}
@@ -88,8 +98,10 @@ export default function Index() {
               </Link>
               <Button 
                 size="xl" 
-                className="bg-white/20 border-2 border-white text-white hover:bg-white/30 backdrop-blur-sm w-full sm:w-auto"
+                className="bg-white/20 border-2 border-white text-white hover:bg-white/30 backdrop-blur-sm w-full sm:w-auto gap-2"
+                onClick={handleViewDemo}
               >
+                <Play className="w-5 h-5" />
                 View Demo
               </Button>
             </div>
