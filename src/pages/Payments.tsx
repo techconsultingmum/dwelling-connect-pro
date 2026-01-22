@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useDemo } from '@/contexts/DemoContext';
 import { useData } from '@/contexts/DataContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,16 +27,26 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// Demo user data
+const demoUser = {
+  memberId: 'DEMO001',
+  maintenanceStatus: 'pending' as const,
+  flatNo: 'A-101',
+  wing: 'A',
+};
+
 export default function Payments() {
   const { user, role } = useAuth();
+  const { isDemoMode } = useDemo();
   const { bills, members, stats, isLoading, syncFromGoogleSheet } = useData();
 
-  const isManager = role === 'manager';
+  const currentUser = isDemoMode ? demoUser : user;
+  const isManager = isDemoMode ? true : role === 'manager';
 
   // Filter bills based on user role
   const userBills = isManager 
     ? bills 
-    : bills.filter(b => b.userId === user?.memberId);
+    : bills.filter(b => b.userId === currentUser?.memberId);
 
   const pendingAmount = userBills
     .filter(b => b.status !== 'paid')
@@ -143,20 +154,20 @@ export default function Payments() {
               />
               <StatCard
                 title="Current Status"
-                value={user?.maintenanceStatus || 'N/A'}
-                icon={user?.maintenanceStatus === 'paid' ? CheckCircle2 : Clock}
+                value={currentUser?.maintenanceStatus || 'N/A'}
+                icon={currentUser?.maintenanceStatus === 'paid' ? CheckCircle2 : Clock}
                 variant={
-                  user?.maintenanceStatus === 'paid' 
+                  currentUser?.maintenanceStatus === 'paid' 
                     ? 'success' 
-                    : user?.maintenanceStatus === 'overdue'
+                    : currentUser?.maintenanceStatus === 'overdue'
                     ? 'destructive'
                     : 'warning'
                 }
               />
               <StatCard
                 title="Flat No"
-                value={user?.flatNo || 'N/A'}
-                subtitle={user?.wing ? `Wing ${user.wing}` : undefined}
+                value={currentUser?.flatNo || 'N/A'}
+                subtitle={currentUser?.wing ? `Wing ${currentUser.wing}` : undefined}
                 icon={Calendar}
                 variant="default"
               />

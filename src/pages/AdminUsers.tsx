@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDemo } from '@/contexts/DemoContext';
 import { supabase } from '@/integrations/supabase/client';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -49,8 +50,63 @@ interface UserWithRole {
   role: 'manager' | 'user';
 }
 
+// Demo users data
+const demoUsers: UserWithRole[] = [
+  {
+    id: '1',
+    user_id: 'demo-001',
+    name: 'Rajesh Kumar',
+    email: 'rajesh@example.com',
+    flat_no: '101',
+    wing: 'A',
+    phone: '+91 98765 43210',
+    role: 'manager',
+  },
+  {
+    id: '2',
+    user_id: 'demo-002',
+    name: 'Priya Sharma',
+    email: 'priya@example.com',
+    flat_no: '205',
+    wing: 'B',
+    phone: '+91 98765 12345',
+    role: 'user',
+  },
+  {
+    id: '3',
+    user_id: 'demo-003',
+    name: 'Amit Patel',
+    email: 'amit@example.com',
+    flat_no: '302',
+    wing: 'A',
+    phone: '+91 98765 23456',
+    role: 'user',
+  },
+  {
+    id: '4',
+    user_id: 'demo-004',
+    name: 'Sneha Reddy',
+    email: 'sneha@example.com',
+    flat_no: '101',
+    wing: 'C',
+    phone: '+91 98765 34567',
+    role: 'user',
+  },
+  {
+    id: '5',
+    user_id: 'demo-005',
+    name: 'Vikram Singh',
+    email: 'vikram@example.com',
+    flat_no: '401',
+    wing: 'A',
+    phone: '+91 98765 45678',
+    role: 'manager',
+  },
+];
+
 export default function AdminUsers() {
   const { user: currentUser } = useAuth();
+  const { isDemoMode } = useDemo();
   const [users, setUsers] = useState<UserWithRole[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -63,6 +119,16 @@ export default function AdminUsers() {
 
   const fetchUsers = async () => {
     setIsLoading(true);
+    
+    // In demo mode, use demo data
+    if (isDemoMode) {
+      setTimeout(() => {
+        setUsers(demoUsers);
+        setIsLoading(false);
+      }, 500);
+      return;
+    }
+
     try {
       const { data, error } = await supabase.functions.invoke('manage-user-role', {
         body: { action: 'list' }
@@ -80,12 +146,28 @@ export default function AdminUsers() {
 
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [isDemoMode]);
 
   const handleRoleChange = async () => {
     if (!confirmDialog.user) return;
 
     setUpdating(confirmDialog.user.user_id);
+    
+    // In demo mode, just update local state
+    if (isDemoMode) {
+      setTimeout(() => {
+        toast.success(`${confirmDialog.user?.name} has been ${confirmDialog.newRole === 'manager' ? 'promoted to Manager' : 'demoted to Member'}`);
+        setUsers(prev => prev.map(u => 
+          u.user_id === confirmDialog.user?.user_id 
+            ? { ...u, role: confirmDialog.newRole }
+            : u
+        ));
+        setUpdating(null);
+        setConfirmDialog({ open: false, user: null, newRole: 'user' });
+      }, 500);
+      return;
+    }
+
     try {
       const { data, error } = await supabase.functions.invoke('manage-user-role', {
         body: { 

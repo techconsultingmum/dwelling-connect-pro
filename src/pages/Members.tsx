@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDemo } from '@/contexts/DemoContext';
 import { useData } from '@/contexts/DataContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,12 +41,14 @@ import { User } from '@/types';
 
 export default function Members() {
   const { role } = useAuth();
+  const { isDemoMode } = useDemo();
   const { members, isLoading, syncFromGoogleSheet } = useData();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMember, setSelectedMember] = useState<User | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  if (role !== 'manager') {
+  // In demo mode, allow access
+  if (!isDemoMode && role !== 'manager') {
     return <Navigate to="/dashboard" replace />;
   }
 
