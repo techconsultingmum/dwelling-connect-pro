@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDemo } from '@/contexts/DemoContext';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -10,6 +11,12 @@ interface ProtectedRouteProps {
 
 export function ProtectedRoute({ children, requireRole }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading, role } = useAuth();
+  const { isDemoMode } = useDemo();
+
+  // Allow access in demo mode
+  if (isDemoMode) {
+    return <>{children}</>;
+  }
 
   if (isLoading) {
     return (

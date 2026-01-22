@@ -107,7 +107,7 @@ export default function Login() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/login`,
+        redirectTo: `${window.location.origin}/reset-password`,
       });
 
       if (error) {
@@ -286,7 +286,7 @@ export default function Login() {
                     type="button"
                     variant="outline"
                     size="lg"
-                    className="w-full mb-4 gap-2"
+                    className="w-full mb-2 gap-2"
                     onClick={handleGoogleLogin}
                     disabled={isLoading}
                   >
@@ -310,6 +310,9 @@ export default function Login() {
                     </svg>
                     Continue with Google
                   </Button>
+                  <p className="text-xs text-muted-foreground text-center mb-4">
+                    Google OAuth requires configuration in project settings
+                  </p>
 
                   <div className="relative my-6">
                     <Separator />
@@ -409,7 +412,7 @@ export default function Login() {
                 type="button"
                 variant="outline"
                 size="lg"
-                className="w-full mb-4 gap-2"
+                className="w-full mb-2 gap-2"
                 onClick={handleGoogleLogin}
                 disabled={isLoading}
               >
@@ -433,6 +436,9 @@ export default function Login() {
                 </svg>
                 Sign up with Google
               </Button>
+              <p className="text-xs text-muted-foreground text-center mb-4">
+                Google OAuth requires configuration in project settings
+              </p>
 
               <div className="relative my-6">
                 <Separator />

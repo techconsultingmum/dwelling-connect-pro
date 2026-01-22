@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDemo } from '@/contexts/DemoContext';
 import { cn } from '@/lib/utils';
 import {
   LayoutDashboard,
@@ -38,14 +39,35 @@ const navItems: NavItem[] = [
   { icon: User, label: 'My Profile', path: '/profile' },
 ];
 
+// Demo user data for display
+const demoUser = {
+  name: 'Demo User',
+  flatNo: 'A-101',
+};
+
 export function Sidebar() {
   const { user, role, logout } = useAuth();
+  const { isDemoMode, exitDemoMode } = useDemo();
+  const navigate = useNavigate();
   const location = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
+  // In demo mode, show as manager to see all features
+  const currentRole = isDemoMode ? 'manager' : role;
+  const currentUser = isDemoMode ? demoUser : user;
+
   const filteredNavItems = navItems.filter(
-    item => !item.managerOnly || role === 'manager'
+    item => !item.managerOnly || currentRole === 'manager'
   );
+
+  const handleLogout = () => {
+    if (isDemoMode) {
+      exitDemoMode();
+      navigate('/');
+    } else {
+      logout();
+    }
+  };
 
   const NavContent = () => (
     <>
@@ -56,7 +78,9 @@ export function Sidebar() {
           </div>
           <div>
             <h1 className="font-bold text-lg text-sidebar-foreground">Society ERP</h1>
-            <p className="text-xs text-sidebar-foreground/60 capitalize">{role} Portal</p>
+            <p className="text-xs text-sidebar-foreground/60 capitalize">
+              {isDemoMode ? 'Demo Mode' : `${currentRole} Portal`}
+            </p>
           </div>
         </div>
       </div>
@@ -89,21 +113,21 @@ export function Sidebar() {
         <div className="flex items-center gap-3 px-4 py-3 mt-2">
           <div className="w-10 h-10 rounded-full bg-sidebar-accent flex items-center justify-center">
             <span className="text-sm font-semibold text-sidebar-foreground">
-              {user?.name?.charAt(0) || 'U'}
+              {currentUser?.name?.charAt(0) || 'U'}
             </span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-sidebar-foreground truncate">{user?.name}</p>
-            <p className="text-xs text-sidebar-foreground/60 truncate">{user?.flatNo}</p>
+            <p className="text-sm font-medium text-sidebar-foreground truncate">{currentUser?.name}</p>
+            <p className="text-xs text-sidebar-foreground/60 truncate">{currentUser?.flatNo}</p>
           </div>
         </div>
         <Button
           variant="ghost"
-          onClick={logout}
+          onClick={handleLogout}
           className="w-full justify-start gap-3 text-sidebar-foreground/70 hover:bg-destructive/10 hover:text-destructive"
         >
           <LogOut className="w-5 h-5" />
-          <span>Logout</span>
+          <span>{isDemoMode ? 'Exit Demo' : 'Logout'}</span>
         </Button>
       </div>
     </>

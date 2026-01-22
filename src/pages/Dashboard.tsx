@@ -1,5 +1,6 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
+import { useDemo } from '@/contexts/DemoContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/stats/StatCard';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,14 +20,28 @@ import {
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
+// Demo user data
+const demoUser = {
+  memberId: 'DEMO001',
+  name: 'Demo User',
+  email: 'demo@example.com',
+  flatNo: 'A-101',
+  wing: 'A',
+  maintenanceStatus: 'pending' as const,
+  outstandingDues: 5000,
+};
+
 export default function Dashboard() {
   const { user, role } = useAuth();
   const { stats, notices, complaints, bills } = useData();
+  const { isDemoMode } = useDemo();
 
-  const isManager = role === 'manager';
+  // Use demo data if in demo mode
+  const currentUser = isDemoMode ? demoUser : user;
+  const isManager = isDemoMode ? true : role === 'manager'; // Demo as manager to show all features
 
-  const userBills = bills.filter(b => b.userId === user?.memberId);
-  const userComplaints = complaints.filter(c => c.userId === user?.memberId);
+  const userBills = bills.filter(b => b.userId === currentUser?.memberId);
+  const userComplaints = complaints.filter(c => c.userId === currentUser?.memberId);
 
   return (
     <DashboardLayout>
@@ -35,10 +50,10 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">
-              Welcome back, {user?.name?.split(' ')[0]}!
+              Welcome back, {currentUser?.name?.split(' ')[0] || 'User'}!
             </h1>
             <p className="text-muted-foreground mt-1">
-              {isManager 
+              {isManager
                 ? 'Here\'s what\'s happening in your society today.'
                 : 'Here\'s your society updates and dues.'}
             </p>
@@ -95,18 +110,18 @@ export default function Dashboard() {
             <>
               <StatCard
                 title="Outstanding Dues"
-                value={`₹${user?.outstandingDues?.toLocaleString() || 0}`}
+                value={`₹${currentUser?.outstandingDues?.toLocaleString() || 0}`}
                 icon={IndianRupee}
-                variant={user?.outstandingDues ? 'warning' : 'success'}
+                variant={currentUser?.outstandingDues ? 'warning' : 'success'}
               />
               <StatCard
                 title="Maintenance Status"
-                value={user?.maintenanceStatus || 'N/A'}
+                value={currentUser?.maintenanceStatus || 'N/A'}
                 icon={CheckCircle2}
                 variant={
-                  user?.maintenanceStatus === 'paid' 
+                  currentUser?.maintenanceStatus === 'paid' 
                     ? 'success' 
-                    : user?.maintenanceStatus === 'overdue'
+                    : currentUser?.maintenanceStatus === 'overdue'
                     ? 'destructive'
                     : 'warning'
                 }
