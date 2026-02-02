@@ -3,9 +3,11 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { DataProvider } from "@/contexts/DataContext";
 import { DemoProvider } from "@/contexts/DemoContext";
+import { ProtectedRoute } from "@/components/layout/ProtectedRoute";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import ResetPassword from "./pages/ResetPassword";
@@ -19,36 +21,82 @@ import Profile from "./pages/Profile";
 import AdminUsers from "./pages/AdminUsers";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000, // 5 minutes
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <DemoProvider>
-        <DataProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/" element={<Index />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/members" element={<Members />} />
-                <Route path="/notices" element={<Notices />} />
-                <Route path="/complaints" element={<Complaints />} />
-                <Route path="/chat" element={<Chat />} />
-                <Route path="/payments" element={<Payments />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/admin/users" element={<AdminUsers />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
-        </DataProvider>
-      </DemoProvider>
-    </AuthProvider>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <AuthProvider>
+        <DemoProvider>
+          <DataProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Routes>
+                  {/* Public Routes */}
+                  <Route path="/" element={<Index />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/reset-password" element={<ResetPassword />} />
+                  
+                  {/* Protected Routes */}
+                  <Route path="/dashboard" element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/members" element={
+                    <ProtectedRoute requireRole="manager">
+                      <Members />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/notices" element={
+                    <ProtectedRoute>
+                      <Notices />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/complaints" element={
+                    <ProtectedRoute>
+                      <Complaints />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/chat" element={
+                    <ProtectedRoute>
+                      <Chat />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/payments" element={
+                    <ProtectedRoute>
+                      <Payments />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/profile" element={
+                    <ProtectedRoute>
+                      <Profile />
+                    </ProtectedRoute>
+                  } />
+                  <Route path="/admin/users" element={
+                    <ProtectedRoute requireRole="manager">
+                      <AdminUsers />
+                    </ProtectedRoute>
+                  } />
+                  
+                  {/* 404 */}
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </BrowserRouter>
+            </TooltipProvider>
+          </DataProvider>
+        </DemoProvider>
+      </AuthProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 

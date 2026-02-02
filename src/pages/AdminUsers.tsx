@@ -209,7 +209,7 @@ export default function AdminUsers() {
   const regularUsers = users.filter(u => u.role === 'user');
 
   return (
-    <DashboardLayout requireRole="manager">
+    <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
         <div>
@@ -240,8 +240,8 @@ export default function AdminUsers() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center">
-                  <Crown className="w-6 h-6 text-amber-500" />
+                <div className="w-12 h-12 rounded-xl bg-warning/10 flex items-center justify-center">
+                  <Crown className="w-6 h-6 text-warning" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{managers.length}</p>
@@ -340,7 +340,7 @@ export default function AdminUsers() {
                           <TableCell>
                             <Badge 
                               variant={isManager ? 'default' : 'secondary'}
-                              className={isManager ? 'bg-amber-500 hover:bg-amber-600' : ''}
+                              className={isManager ? 'bg-warning text-warning-foreground hover:bg-warning/90' : ''}
                             >
                               {isManager ? (
                                 <><Crown className="w-3 h-3 mr-1" /> Manager</>

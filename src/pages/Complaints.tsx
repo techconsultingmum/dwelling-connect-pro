@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDemo } from '@/contexts/DemoContext';
 import { useData } from '@/contexts/DataContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
@@ -31,10 +31,11 @@ import {
   Loader2,
   Home,
   User,
-  Filter,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Complaint } from '@/types';
+import { z } from 'zod';
+import { toast } from 'sonner';
 
 const categories = [
   'Plumbing',
@@ -47,21 +48,31 @@ const categories = [
   'Other',
 ];
 
+const complaintSchema = z.object({
+  category: z.string().min(1, 'Please select a category'),
+  description: z.string()
+    .min(10, 'Description must be at least 10 characters')
+    .max(500, 'Description must be less than 500 characters'),
+});
+
 export default function Complaints() {
   const { user, role } = useAuth();
+  const { isDemoMode } = useDemo();
   const { complaints, addComplaint, updateComplaintStatus } = useData();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [formErrors, setFormErrors] = useState<{ category?: string; description?: string }>({});
   const [newComplaint, setNewComplaint] = useState({
     category: '',
     description: '',
   });
 
-  const isManager = role === 'manager';
+  const isManager = isDemoMode ? true : role === 'manager';
+  const currentUser = isDemoMode ? { memberId: 'DEMO001', name: 'Demo User', flatNo: 'A-101' } : user;
 
   const userComplaints = isManager 
     ? complaints 
-    : complaints.filter(c => c.userId === user?.memberId);
+    : complaints.filter(c => c.userId === currentUser?.memberId);
 
   const filteredComplaints = statusFilter === 'all'
     ? userComplaints
@@ -69,12 +80,25 @@ export default function Complaints() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setFormErrors({});
+
+    const result = complaintSchema.safeParse(newComplaint);
+    if (!result.success) {
+      const errors: { category?: string; description?: string } = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0] === 'category') errors.category = err.message;
+        if (err.path[0] === 'description') errors.description = err.message;
+      });
+      setFormErrors(errors);
+      return;
+    }
+
     addComplaint({
-      userId: user?.memberId || '',
-      userName: user?.name || '',
-      flatNo: user?.flatNo || '',
+      userId: currentUser?.memberId || '',
+      userName: currentUser?.name || '',
+      flatNo: currentUser?.flatNo || '',
       category: newComplaint.category,
-      description: newComplaint.description,
+      description: newComplaint.description.trim(),
       status: 'open',
     });
     setNewComplaint({ category: '', description: '' });
@@ -142,11 +166,12 @@ export default function Complaints() {
                     <Label htmlFor="category">Category</Label>
                     <Select
                       value={newComplaint.category}
-                      onValueChange={(value) => 
-                        setNewComplaint({ ...newComplaint, category: value })
-                      }
+                      onValueChange={(value) => {
+                        setNewComplaint({ ...newComplaint, category: value });
+                        setFormErrors(prev => ({ ...prev, category: undefined }));
+                      }}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={formErrors.category ? 'border-destructive' : ''}>
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                       <SelectContent>
@@ -155,23 +180,42 @@ export default function Complaints() {
                         ))}
                       </SelectContent>
                     </Select>
+                    {formErrors.category && (
+                      <p className="text-sm text-destructive">{formErrors.category}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="description">Description</Label>
                     <Textarea
                       id="description"
-                      placeholder="Describe your issue in detail..."
+                      placeholder="Describe your issue in detail (min 10 characters)..."
                       rows={4}
                       value={newComplaint.description}
-                      onChange={(e) => setNewComplaint({ ...newComplaint, description: e.target.value })}
-                      required
+                      onChange={(e) => {
+                        setNewComplaint({ ...newComplaint, description: e.target.value });
+                        setFormErrors(prev => ({ ...prev, description: undefined }));
+                      }}
+                      className={formErrors.description ? 'border-destructive' : ''}
+                      maxLength={500}
                     />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      {formErrors.description ? (
+                        <p className="text-destructive">{formErrors.description}</p>
+                      ) : (
+                        <span></span>
+                      )}
+                      <span>{newComplaint.description.length}/500</span>
+                    </div>
                   </div>
                   <div className="flex gap-3 pt-4">
                     <Button 
                       type="button" 
                       variant="outline" 
-                      onClick={() => setIsDialogOpen(false)}
+                      onClick={() => {
+                        setIsDialogOpen(false);
+                        setFormErrors({});
+                        setNewComplaint({ category: '', description: '' });
+                      }}
                       className="flex-1"
                     >
                       Cancel
@@ -180,7 +224,6 @@ export default function Complaints() {
                       type="submit" 
                       variant="gradient" 
                       className="flex-1"
-                      disabled={!newComplaint.category || !newComplaint.description}
                     >
                       Submit Complaint
                     </Button>

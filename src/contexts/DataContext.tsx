@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import { User, Notice, Complaint, MaintenanceBill, DashboardStats } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 interface DataContextType {
   members: User[];
@@ -9,6 +11,7 @@ interface DataContextType {
   bills: MaintenanceBill[];
   stats: DashboardStats;
   isLoading: boolean;
+  error: string | null;
   syncFromGoogleSheet: () => Promise<void>;
   addNotice: (notice: Omit<Notice, 'id'>) => void;
   addComplaint: (complaint: Omit<Complaint, 'id' | 'createdAt' | 'updatedAt'>) => void;
@@ -142,11 +145,13 @@ const demoMembers: User[] = [
 ];
 
 export function DataProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth();
   const [members, setMembers] = useState<User[]>(demoMembers);
   const [notices, setNotices] = useState<Notice[]>(demoNotices);
   const [complaints, setComplaints] = useState<Complaint[]>(demoComplaints);
   const [bills, setBills] = useState<MaintenanceBill[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const stats: DashboardStats = {
     totalMembers: members.length,
@@ -158,69 +163,56 @@ export function DataProvider({ children }: { children: ReactNode }) {
   };
 
   const syncFromGoogleSheet = useCallback(async () => {
+    // Only sync if authenticated
+    if (!isAuthenticated) {
+      console.log('User not authenticated, skipping sync');
+      return;
+    }
+
     setIsLoading(true);
+    setError(null);
+    
     try {
-      const { data, error } = await supabase.functions.invoke('google-sheets-sync', {
+      const { data, error: invokeError } = await supabase.functions.invoke('google-sheets-sync', {
         body: { action: 'read' }
       });
 
-      if (error) {
-        console.error('Edge function error:', error);
-        throw error;
+      if (invokeError) {
+        console.error('Edge function error:', invokeError);
+        throw new Error(invokeError.message || 'Failed to sync data');
       }
 
       if (data?.success) {
         // Sync members
         if (data.members?.length > 0) {
           setMembers(data.members);
-          console.log(`Synced ${data.members.length} members from Google Sheet`);
+          toast.success(`Synced ${data.members.length} members`);
         }
         
         // Sync bills if available
         if (data.bills?.length > 0) {
           setBills(data.bills);
-          console.log(`Synced ${data.bills.length} bills from Google Sheet`);
         }
-      } else {
-        console.warn('No data returned from sync, using fallback CSV fetch');
-        // Fallback to direct CSV fetch
-        const response = await fetch('https://docs.google.com/spreadsheets/d/1sQta9o2wRufsm9Kn7I9GRocNDviU-z9YgJb9m6uxIAo/export?format=csv');
-        const csvText = await response.text();
-        
-        const lines = csvText.split('\n');
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, ''));
-        
-        const parsedMembers: User[] = lines.slice(1).filter(line => line.trim()).map((line, index) => {
-          const values = line.split(',').map(v => v.trim());
-          const memberData: Record<string, string> = {};
-          
-          headers.forEach((header, i) => {
-            memberData[header] = values[i] || '';
-          });
-
-          return {
-            memberId: memberData.memberid || `USR${String(index + 1).padStart(3, '0')}`,
-            name: memberData.name || 'Unknown',
-            email: memberData.email || '',
-            phone: memberData.phone || '',
-            flatNo: memberData.flatno || memberData.flat || '',
-            wing: memberData.wing || memberData.building || '',
-            role: (memberData.role?.toLowerCase() === 'manager' ? 'manager' : 'user') as 'manager' | 'user',
-            maintenanceStatus: (memberData.maintenancestatus?.toLowerCase() || 'pending') as 'paid' | 'pending' | 'overdue',
-            outstandingDues: parseFloat(memberData.outstandingdues) || 0,
-          };
-        });
-
-        if (parsedMembers.length > 0) {
-          setMembers(parsedMembers);
+      } else if (data?.error) {
+        // Handle auth errors gracefully
+        if (data.error === 'Unauthorized') {
+          console.log('Authentication required for data sync');
+          return;
         }
+        throw new Error(data.error);
       }
-    } catch (error) {
-      console.error('Failed to sync from Google Sheet:', error);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to sync from Google Sheet';
+      console.error('Sync error:', errorMessage);
+      setError(errorMessage);
+      // Don't show toast for auth errors
+      if (!errorMessage.includes('Unauthorized')) {
+        toast.error('Failed to sync data. Using cached data.');
+      }
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const addNotice = useCallback((notice: Omit<Notice, 'id'>) => {
     const newNotice: Notice = {
@@ -228,6 +220,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       id: Date.now().toString(),
     };
     setNotices(prev => [newNotice, ...prev]);
+    toast.success('Notice published successfully');
   }, []);
 
   const addComplaint = useCallback((complaint: Omit<Complaint, 'id' | 'createdAt' | 'updatedAt'>) => {
@@ -239,6 +232,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       updatedAt: now,
     };
     setComplaints(prev => [newComplaint, ...prev]);
+    toast.success('Complaint submitted successfully');
   }, []);
 
   const updateComplaintStatus = useCallback((id: string, status: Complaint['status']) => {
@@ -250,7 +244,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
       )
     );
 
-    // Send webhook
+    toast.success(`Complaint marked as ${status}`);
+
+    // Send webhook (fire and forget)
     fetch(WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -260,13 +256,17 @@ export function DataProvider({ children }: { children: ReactNode }) {
         status,
         timestamp: new Date().toISOString(),
       }),
-    }).catch(console.error);
+    }).catch(() => {
+      // Silently fail - webhook is optional
+    });
   }, []);
 
-  // Load data on mount
+  // Load data when authenticated
   useEffect(() => {
-    syncFromGoogleSheet();
-  }, [syncFromGoogleSheet]);
+    if (isAuthenticated) {
+      syncFromGoogleSheet();
+    }
+  }, [isAuthenticated, syncFromGoogleSheet]);
 
   return (
     <DataContext.Provider value={{
@@ -276,6 +276,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
       bills,
       stats,
       isLoading,
+      error,
       syncFromGoogleSheet,
       addNotice,
       addComplaint,

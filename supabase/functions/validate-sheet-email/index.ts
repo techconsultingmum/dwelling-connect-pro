@@ -20,7 +20,7 @@ interface SheetMember {
 async function fetchSheetEmails(): Promise<SheetMember[]> {
   const response = await fetch(CSV_URL);
   if (!response.ok) {
-    throw new Error(`Failed to fetch Google Sheet: ${response.status}`);
+    throw new Error('Unable to fetch member data');
   }
   
   const csvText = await response.text();
@@ -87,23 +87,57 @@ async function fetchSheetEmails(): Promise<SheetMember[]> {
   return members;
 }
 
+// Simple email validation
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { email } = await req.json();
+    let email: string;
     
-    if (!email) {
+    try {
+      const body = await req.json();
+      email = body.email;
+    } catch {
+      return new Response(
+        JSON.stringify({ valid: false, error: 'Invalid request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    if (!email || typeof email !== 'string') {
       return new Response(
         JSON.stringify({ valid: false, error: 'Email is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // Validate email format
+    if (!isValidEmail(email)) {
+      return new Response(
+        JSON.stringify({ valid: false, error: 'Invalid email format' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const normalizedEmail = email.toLowerCase().trim();
-    const members = await fetchSheetEmails();
+    
+    let members: SheetMember[];
+    try {
+      members = await fetchSheetEmails();
+    } catch {
+      return new Response(
+        JSON.stringify({ valid: false, error: 'Unable to verify email at this time. Please try again later.' }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     const member = members.find(m => m.email === normalizedEmail);
     
     if (member) {
@@ -130,10 +164,9 @@ serve(async (req) => {
     }
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error:', errorMessage);
+    console.error('Error validating email');
     return new Response(
-      JSON.stringify({ valid: false, error: errorMessage }),
+      JSON.stringify({ valid: false, error: 'An error occurred. Please try again.' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
