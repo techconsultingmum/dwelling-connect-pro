@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -147,6 +148,31 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+
+    // Check for authorization header
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify user authentication
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { action } = await req.json().catch(() => ({ action: 'read' }));
 
     if (action === 'read') {
@@ -154,7 +180,7 @@ serve(async (req) => {
       const response = await fetch(CSV_URL);
       
       if (!response.ok) {
-        throw new Error(`Failed to fetch Google Sheet: ${response.status}`);
+        throw new Error('Failed to fetch data');
       }
       
       const csvText = await response.text();
@@ -172,10 +198,9 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           success: false, 
-          message: 'Write operations require Google Service Account credentials.',
-          requiresSecret: true
+          error: 'Write operations require additional configuration'
         }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -185,10 +210,9 @@ serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error:', errorMessage);
+    console.error('Error processing request');
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ success: false, error: 'An error occurred while processing the request' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
