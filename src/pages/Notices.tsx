@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDemo } from '@/contexts/DemoContext';
 import { useData } from '@/contexts/DataContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,25 +35,54 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Notice } from '@/types';
+import { z } from 'zod';
+
+const noticeSchema = z.object({
+  title: z.string()
+    .min(3, 'Title must be at least 3 characters')
+    .max(100, 'Title must be less than 100 characters'),
+  description: z.string()
+    .min(10, 'Description must be at least 10 characters')
+    .max(1000, 'Description must be less than 1000 characters'),
+  priority: z.enum(['low', 'medium', 'high']),
+});
 
 export default function Notices() {
   const { user, role } = useAuth();
+  const { isDemoMode } = useDemo();
   const { notices, addNotice } = useData();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [formErrors, setFormErrors] = useState<{ title?: string; description?: string }>({});
   const [newNotice, setNewNotice] = useState({
     title: '',
     description: '',
     priority: 'medium' as Notice['priority'],
   });
 
-  const isManager = role === 'manager';
+  const isManager = isDemoMode ? true : role === 'manager';
+  const currentUser = isDemoMode ? { name: 'Demo Manager' } : user;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setFormErrors({});
+
+    const result = noticeSchema.safeParse(newNotice);
+    if (!result.success) {
+      const errors: { title?: string; description?: string } = {};
+      result.error.errors.forEach((err) => {
+        if (err.path[0] === 'title') errors.title = err.message;
+        if (err.path[0] === 'description') errors.description = err.message;
+      });
+      setFormErrors(errors);
+      return;
+    }
+
     addNotice({
-      ...newNotice,
+      title: newNotice.title.trim(),
+      description: newNotice.description.trim(),
+      priority: newNotice.priority,
       date: new Date().toISOString().split('T')[0],
-      createdBy: user?.name || 'Manager',
+      createdBy: currentUser?.name || 'Manager',
     });
     setNewNotice({ title: '', description: '', priority: 'medium' });
     setIsDialogOpen(false);
@@ -114,9 +144,16 @@ export default function Notices() {
                       id="title"
                       placeholder="Enter notice title"
                       value={newNotice.title}
-                      onChange={(e) => setNewNotice({ ...newNotice, title: e.target.value })}
-                      required
+                      onChange={(e) => {
+                        setNewNotice({ ...newNotice, title: e.target.value });
+                        setFormErrors(prev => ({ ...prev, title: undefined }));
+                      }}
+                      className={formErrors.title ? 'border-destructive' : ''}
+                      maxLength={100}
                     />
+                    {formErrors.title && (
+                      <p className="text-sm text-destructive">{formErrors.title}</p>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="description">Description</Label>
@@ -125,9 +162,21 @@ export default function Notices() {
                       placeholder="Enter notice details..."
                       rows={4}
                       value={newNotice.description}
-                      onChange={(e) => setNewNotice({ ...newNotice, description: e.target.value })}
-                      required
+                      onChange={(e) => {
+                        setNewNotice({ ...newNotice, description: e.target.value });
+                        setFormErrors(prev => ({ ...prev, description: undefined }));
+                      }}
+                      className={formErrors.description ? 'border-destructive' : ''}
+                      maxLength={1000}
                     />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      {formErrors.description ? (
+                        <p className="text-destructive">{formErrors.description}</p>
+                      ) : (
+                        <span></span>
+                      )}
+                      <span>{newNotice.description.length}/1000</span>
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="priority">Priority</Label>
@@ -151,7 +200,11 @@ export default function Notices() {
                     <Button 
                       type="button" 
                       variant="outline" 
-                      onClick={() => setIsDialogOpen(false)}
+                      onClick={() => {
+                        setIsDialogOpen(false);
+                        setFormErrors({});
+                        setNewNotice({ title: '', description: '', priority: 'medium' });
+                      }}
                       className="flex-1"
                     >
                       Cancel

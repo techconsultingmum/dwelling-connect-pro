@@ -1,19 +1,19 @@
 import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth, UserRole } from '@/contexts/AuthContext';
 import { useDemo } from '@/contexts/DemoContext';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requireRole?: 'manager' | 'user';
+  requireRole?: UserRole;
 }
 
 export function ProtectedRoute({ children, requireRole }: ProtectedRouteProps) {
   const { isAuthenticated, isLoading, role } = useAuth();
   const { isDemoMode } = useDemo();
 
-  // Allow access in demo mode
+  // Allow access in demo mode (demo shows manager features)
   if (isDemoMode) {
     return <>{children}</>;
   }
@@ -33,7 +33,9 @@ export function ProtectedRoute({ children, requireRole }: ProtectedRouteProps) {
     return <Navigate to="/login" replace />;
   }
 
+  // Check role requirement
   if (requireRole && role !== requireRole) {
+    // User doesn't have required role - redirect to dashboard
     return <Navigate to="/dashboard" replace />;
   }
 

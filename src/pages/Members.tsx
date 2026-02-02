@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDemo } from '@/contexts/DemoContext';
 import { useData } from '@/contexts/DataContext';
@@ -47,10 +46,7 @@ export default function Members() {
   const [selectedMember, setSelectedMember] = useState<User | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // In demo mode, allow access
-  if (!isDemoMode && role !== 'manager') {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // Role check is now handled by App.tsx routes
 
   const filteredMembers = members.filter(member =>
     member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
