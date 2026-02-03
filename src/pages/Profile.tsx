@@ -57,13 +57,20 @@ export default function Profile() {
     }
   }, [currentUser]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (isDemoMode) {
       toast.success('Profile updated (demo mode)');
-    } else {
-      updateProfile(formData);
+      setIsEditing(false);
+      return;
     }
-    setIsEditing(false);
+    
+    const result = await updateProfile(formData);
+    if (result.success) {
+      toast.success('Profile updated successfully');
+      setIsEditing(false);
+    } else {
+      toast.error(result.error || 'Failed to update profile');
+    }
   };
 
   if (isLoading) {

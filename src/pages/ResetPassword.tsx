@@ -22,7 +22,15 @@ export default function ResetPassword() {
     const accessToken = hashParams.get('access_token');
     const type = hashParams.get('type');
     
-    if (type !== 'recovery' && !accessToken) {
+    // Also check query params for some Supabase redirect formats
+    const searchParams = new URLSearchParams(window.location.search);
+    const tokenFromQuery = searchParams.get('token');
+    const typeFromQuery = searchParams.get('type');
+    
+    const hasValidToken = accessToken || tokenFromQuery;
+    const isRecovery = type === 'recovery' || typeFromQuery === 'recovery';
+    
+    if (!isRecovery && !hasValidToken) {
       // Not a password reset flow, redirect to login
       navigate('/login');
     }

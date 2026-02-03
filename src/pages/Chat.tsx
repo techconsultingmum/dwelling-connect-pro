@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDemo } from '@/contexts/DemoContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -7,12 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/ui/empty-state';
 import { 
   MessageSquare, 
   Send, 
   User,
   Circle,
   Loader2,
+  Users,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRealtimeChat, useChatPartners, Message } from '@/hooks/useRealtimeChat';
@@ -119,12 +121,12 @@ export default function Chat() {
     setIsSending(false);
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
-  };
+  }, [handleSend]);
 
   // Get partner name for display
   const getPartnerName = (partnerId: string) => {
@@ -175,10 +177,12 @@ export default function Chat() {
                       </div>
                     ))
                   ) : partners.length === 0 ? (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <User className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                      <p className="text-sm">No contacts available</p>
-                    </div>
+                    <EmptyState
+                      icon={Users}
+                      title="No contacts available"
+                      description="No one has signed up yet"
+                      className="py-8"
+                    />
                   ) : (
                     partners.map((partner) => {
                       const isSelected = chatPartnerId === partner.userId;

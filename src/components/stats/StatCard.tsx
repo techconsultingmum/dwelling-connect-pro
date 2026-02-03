@@ -46,32 +46,37 @@ export function StatCard({
         variantStyles[variant],
         className
       )}
+      role="article"
+      aria-label={`${title}: ${value}${subtitle ? `, ${subtitle}` : ''}`}
     >
       <div className="flex items-start justify-between">
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <p className="text-3xl font-bold tracking-tight">{value}</p>
+        <div className="space-y-1 min-w-0 flex-1">
+          <p className="text-sm font-medium text-muted-foreground truncate">{title}</p>
+          <p className="text-2xl sm:text-3xl font-bold tracking-tight break-words">{value}</p>
           {subtitle && (
-            <p className="text-sm text-muted-foreground">{subtitle}</p>
+            <p className="text-sm text-muted-foreground truncate">{subtitle}</p>
           )}
           {trend && (
             <p
               className={cn(
-                'text-sm font-medium',
+                'text-sm font-medium flex items-center gap-1',
                 trend.isPositive ? 'text-success' : 'text-destructive'
               )}
+              aria-label={`${trend.isPositive ? 'Increased' : 'Decreased'} by ${Math.abs(trend.value)} percent`}
             >
-              {trend.isPositive ? '↑' : '↓'} {Math.abs(trend.value)}%
+              <span aria-hidden="true">{trend.isPositive ? '↑' : '↓'}</span>
+              {Math.abs(trend.value)}%
             </p>
           )}
         </div>
         <div
           className={cn(
-            'w-12 h-12 rounded-xl flex items-center justify-center',
+            'w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ml-3',
             iconStyles[variant]
           )}
+          aria-hidden="true"
         >
-          <Icon className="w-6 h-6" />
+          <Icon className="w-5 h-5 sm:w-6 sm:h-6" />
         </div>
       </div>
     </div>

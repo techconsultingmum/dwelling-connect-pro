@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDemo } from '@/contexts/DemoContext';
 import { useData } from '@/contexts/DataContext';
@@ -21,18 +21,17 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
+import { EmptyState } from '@/components/ui/empty-state';
+import { PageLoader } from '@/components/ui/loading-spinner';
 import { 
   Users, 
   Search, 
   RefreshCw, 
-  Download, 
   UserPlus,
   Phone,
   Mail,
   Home,
-  IndianRupee,
   Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -48,12 +47,15 @@ export default function Members() {
 
   // Role check is now handled by App.tsx routes
 
-  const filteredMembers = members.filter(member =>
-    member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    member.flatNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    member.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    member.wing.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredMembers = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+    return members.filter(member =>
+      member.name.toLowerCase().includes(query) ||
+      member.flatNo.toLowerCase().includes(query) ||
+      member.email.toLowerCase().includes(query) ||
+      member.wing.toLowerCase().includes(query)
+    );
+  }, [members, searchQuery]);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -125,10 +127,7 @@ export default function Members() {
         <Card>
           <CardContent className="p-0">
             {isLoading ? (
-              <div className="flex items-center justify-center py-20">
-                <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                <span className="ml-3 text-muted-foreground">Loading members...</span>
-              </div>
+              <PageLoader text="Loading members..." />
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -209,11 +208,12 @@ export default function Members() {
             )}
 
             {!isLoading && filteredMembers.length === 0 && (
-              <div className="text-center py-20">
-                <Users className="w-16 h-16 mx-auto text-muted-foreground/50 mb-4" />
-                <p className="text-lg font-medium">No members found</p>
-                <p className="text-muted-foreground">Try adjusting your search query</p>
-              </div>
+              <EmptyState
+                icon={Users}
+                title="No members found"
+                description={searchQuery ? "Try adjusting your search query" : "No members have been added yet"}
+                className="py-20"
+              />
             )}
           </CardContent>
         </Card>

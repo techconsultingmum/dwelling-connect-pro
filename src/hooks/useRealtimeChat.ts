@@ -51,12 +51,19 @@ export function useRealtimeChat(partnerId: string | null) {
 
   // Subscribe to realtime updates
   useEffect(() => {
-    if (!user?.userId) return;
+    if (!user?.userId) {
+      setIsLoading(false);
+      return;
+    }
 
     fetchMessages();
 
+    // Only subscribe if we have a valid partner
+    if (!partnerId) return;
+
+    const channelName = `messages-${user.userId}-${partnerId}`;
     const channel: RealtimeChannel = supabase
-      .channel('messages-realtime')
+      .channel(channelName)
       .on(
         'postgres_changes',
         {
@@ -71,7 +78,11 @@ export function useRealtimeChat(partnerId: string | null) {
             (newMessage.sender_id === user.userId && newMessage.receiver_id === partnerId) ||
             (newMessage.sender_id === partnerId && newMessage.receiver_id === user.userId)
           ) {
-            setMessages((prev) => [...prev, newMessage]);
+            setMessages((prev) => {
+              // Prevent duplicates
+              if (prev.some(m => m.id === newMessage.id)) return prev;
+              return [...prev, newMessage];
+            });
           }
         }
       )

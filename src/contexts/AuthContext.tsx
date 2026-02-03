@@ -30,7 +30,7 @@ interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   signup: (email: string, password: string, name: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -83,14 +83,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+    
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('Auth state changed:', event, session?.user?.email);
+      if (!mounted) return;
+      
+      if (event === 'SIGNED_OUT') {
+        setAuthState({
+          isAuthenticated: false,
+          user: null,
+          role: null,
+          isLoading: false,
+        });
+        return;
+      }
       
       if (session?.user) {
-        // Use setTimeout to avoid potential race conditions
+        // Defer profile fetch to avoid race conditions during SIGNED_IN
         setTimeout(async () => {
+          if (!mounted) return;
           const { profile, role } = await fetchUserProfile(session.user.id);
+          if (!mounted) return;
           setAuthState({
             isAuthenticated: true,
             user: profile,
@@ -110,8 +124,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // THEN check for existing session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
       if (session?.user) {
         const { profile, role } = await fetchUserProfile(session.user.id);
+        if (!mounted) return;
         setAuthState({
           isAuthenticated: true,
           user: profile,
@@ -123,7 +139,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [fetchUserProfile]);
 
   const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
@@ -248,25 +267,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const updateProfile = useCallback(async (updates: Partial<UserProfile>) => {
-    if (!authState.user) return;
+  const updateProfile = useCallback(async (updates: Partial<UserProfile>): Promise<{ success: boolean; error?: string }> => {
+    if (!authState.user) {
+      return { success: false, error: 'No user logged in' };
+    }
 
-    const { error } = await supabase
-      .from('profiles')
-      .update({
-        name: updates.name,
-        phone: updates.phone,
-        flat_no: updates.flatNo,
-        wing: updates.wing,
-        avatar_url: updates.avatarUrl,
-      })
-      .eq('user_id', authState.user.userId);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          name: updates.name,
+          phone: updates.phone,
+          flat_no: updates.flatNo,
+          wing: updates.wing,
+          avatar_url: updates.avatarUrl,
+        })
+        .eq('user_id', authState.user.userId);
 
-    if (!error) {
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
       setAuthState(prev => ({
         ...prev,
         user: prev.user ? { ...prev.user, ...updates } : null,
       }));
+      
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: 'An unexpected error occurred' };
     }
   }, [authState.user]);
 
