@@ -126,7 +126,8 @@ export default function Chat() {
       e.preventDefault();
       handleSend();
     }
-  }, [handleSend]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [newMessage, chatPartnerId, isDemoMode]);
 
   // Get partner name for display
   const getPartnerName = (partnerId: string) => {
@@ -330,8 +331,10 @@ export default function Chat() {
                     placeholder="Type your message..."
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
+                    onKeyDown={handleKeyPress}
                     disabled={isSending}
+                    maxLength={2000}
+                    aria-label="Type your message"
                   />
                   <Button 
                     variant="gradient" 

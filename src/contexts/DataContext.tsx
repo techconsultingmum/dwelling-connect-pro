@@ -20,7 +20,8 @@ interface DataContextType {
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-const WEBHOOK_URL = 'https://wasekom.app.n8n.cloud/webhook-test/HrErpApp';
+// Webhook URL for optional integrations (should be moved to env variable in production)
+const WEBHOOK_URL = import.meta.env.VITE_WEBHOOK_URL || '';
 
 // Demo data
 const demoNotices: Notice[] = [
@@ -246,19 +247,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     toast.success(`Complaint marked as ${status}`);
 
-    // Send webhook (fire and forget)
-    fetch(WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'complaint_status_update',
-        complaintId: id,
-        status,
-        timestamp: new Date().toISOString(),
-      }),
-    }).catch(() => {
-      // Silently fail - webhook is optional
-    });
+    // Send webhook (fire and forget) - only if webhook URL is configured
+    if (WEBHOOK_URL) {
+      fetch(WEBHOOK_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'complaint_status_update',
+          complaintId: id,
+          status,
+          timestamp: new Date().toISOString(),
+        }),
+      }).catch(() => {
+        // Silently fail - webhook is optional
+      });
+    }
   }, []);
 
   // Load data when authenticated
