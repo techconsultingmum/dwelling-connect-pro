@@ -135,11 +135,19 @@ export function Sidebar() {
 
   return (
     <>
+      {/* Skip link for accessibility */}
+      <a 
+        href="#main-content" 
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[100] focus:bg-primary focus:text-primary-foreground focus:px-4 focus:py-2 focus:rounded-md"
+      >
+        Skip to main content
+      </a>
+      
       {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-sidebar h-16 flex items-center justify-between px-4">
+      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-sidebar h-16 flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-sidebar-primary flex items-center justify-center">
-            <Building2 className="w-4 h-4 text-sidebar-primary-foreground" />
+            <Building2 className="w-4 h-4 text-sidebar-primary-foreground" aria-hidden="true" />
           </div>
           <span className="font-bold text-sidebar-foreground">Society ERP</span>
         </div>
@@ -148,16 +156,19 @@ export function Sidebar() {
           size="icon"
           onClick={() => setIsMobileOpen(!isMobileOpen)}
           className="text-sidebar-foreground"
+          aria-label={isMobileOpen ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={isMobileOpen}
         >
           {isMobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
         </Button>
-      </div>
+      </header>
 
       {/* Mobile Overlay */}
       {isMobileOpen && (
         <div
           className="lg:hidden fixed inset-0 bg-background/80 backdrop-blur-sm z-40"
           onClick={() => setIsMobileOpen(false)}
+          aria-hidden="true"
         />
       )}
 
@@ -167,12 +178,16 @@ export function Sidebar() {
           'lg:hidden fixed top-16 left-0 bottom-0 w-72 bg-sidebar z-50 flex flex-col transition-transform duration-300',
           isMobileOpen ? 'translate-x-0' : '-translate-x-full'
         )}
+        aria-label="Navigation sidebar"
       >
         <NavContent />
       </aside>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex fixed top-0 left-0 bottom-0 w-72 sidebar-gradient flex-col">
+      <aside 
+        className="hidden lg:flex fixed top-0 left-0 bottom-0 w-72 sidebar-gradient flex-col"
+        aria-label="Navigation sidebar"
+      >
         <NavContent />
       </aside>
     </>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDemo } from '@/contexts/DemoContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -16,6 +16,8 @@ import {
   Shield,
   Building2,
   Edit,
+  Loader2,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -37,6 +39,7 @@ export default function Profile() {
   const { user, role, updateProfile, isLoading } = useAuth();
   const { isDemoMode } = useDemo();
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     phone: '',
     email: '',
@@ -47,6 +50,7 @@ export default function Profile() {
   const currentUser = isDemoMode ? demoProfileUser : user;
   const isManager = isDemoMode ? true : role === 'manager';
 
+  // Initialize form data when user changes
   useEffect(() => {
     if (currentUser) {
       setFormData({
@@ -57,6 +61,18 @@ export default function Profile() {
     }
   }, [currentUser]);
 
+  // Reset form data when canceling
+  const handleCancelEdit = useCallback(() => {
+    if (currentUser) {
+      setFormData({
+        phone: currentUser.phone || '',
+        email: currentUser.email || '',
+        emergencyContact: currentUser.emergencyContact || '',
+      });
+    }
+    setIsEditing(false);
+  }, [currentUser]);
+
   const handleSave = async () => {
     if (isDemoMode) {
       toast.success('Profile updated (demo mode)');
@@ -64,7 +80,10 @@ export default function Profile() {
       return;
     }
     
+    setIsSaving(true);
     const result = await updateProfile(formData);
+    setIsSaving(false);
+    
     if (result.success) {
       toast.success('Profile updated successfully');
       setIsEditing(false);
@@ -125,13 +144,40 @@ export default function Profile() {
                 </div>
                 <p className="text-muted-foreground">{currentUser?.memberId}</p>
               </div>
-              <Button
-                variant={isEditing ? 'outline' : 'gradient'}
-                onClick={() => setIsEditing(!isEditing)}
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                {isEditing ? 'Cancel' : 'Edit Profile'}
-              </Button>
+              <div className="flex gap-2">
+                {isEditing && (
+                  <Button
+                    variant="outline"
+                    onClick={handleCancelEdit}
+                    disabled={isSaving}
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    Cancel
+                  </Button>
+                )}
+                <Button
+                  variant={isEditing ? 'gradient' : 'outline'}
+                  onClick={isEditing ? handleSave : () => setIsEditing(true)}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : isEditing ? (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Save Changes
+                    </>
+                  ) : (
+                    <>
+                      <Edit className="w-4 h-4 mr-2" />
+                      Edit Profile
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -260,16 +306,6 @@ export default function Profile() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Save Button */}
-        {isEditing && (
-          <div className="flex justify-end">
-            <Button variant="gradient" size="lg" onClick={handleSave}>
-              <Save className="w-5 h-5 mr-2" />
-              Save Changes
-            </Button>
-          </div>
-        )}
       </div>
     </DashboardLayout>
   );

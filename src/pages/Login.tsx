@@ -343,6 +343,8 @@ export default function Login() {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         required
+                        maxLength={255}
+                        autoComplete="email"
                       />
                     </div>
 
@@ -369,11 +371,14 @@ export default function Login() {
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           required
+                          maxLength={72}
+                          autoComplete="current-password"
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
                         >
                           {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                         </button>
@@ -469,7 +474,13 @@ export default function Login() {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
+                    maxLength={100}
+                    autoComplete="name"
+                    aria-describedby="name-hint"
                   />
+                  <p id="name-hint" className="text-xs text-muted-foreground">
+                    Your name as it appears in society records
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -481,8 +492,11 @@ export default function Login() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
+                    maxLength={255}
+                    autoComplete="email"
+                    aria-describedby="email-hint"
                   />
-                  <p className="text-xs text-muted-foreground">
+                  <p id="email-hint" className="text-xs text-muted-foreground">
                     Must match your email in the society records
                   </p>
                 </div>
@@ -498,15 +512,21 @@ export default function Login() {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                       minLength={6}
+                      maxLength={72}
+                      autoComplete="new-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
                     >
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
+                  {password && password.length > 0 && password.length < 6 && (
+                    <p className="text-xs text-warning">Password must be at least 6 characters</p>
+                  )}
                 </div>
 
                 {error && (
