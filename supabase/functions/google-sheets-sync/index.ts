@@ -1,10 +1,18 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Dynamic CORS based on allowed origins
+function getCorsHeaders(req: Request) {
+  const allowedOrigins = (Deno.env.get('ALLOWED_ORIGINS') || 'https://dwelling-connect-pro.lovable.app,https://id-preview--05f7decd-ddff-49c1-86f2-98c702724fdb.lovable.app,http://localhost:5173,http://localhost:8080').split(',').filter(Boolean);
+  const origin = req.headers.get('origin') || '';
+  const allowedOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Credentials': 'true',
+  };
+}
 
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/1sQta9o2wRufsm9Kn7I9GRocNDviU-z9YgJb9m6uxIAo/export?format=csv';
 
@@ -142,6 +150,8 @@ function parseMaintenanceStatus(status: string): 'paid' | 'pending' | 'overdue' 
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -213,7 +223,7 @@ serve(async (req) => {
     console.error('Error processing request');
     return new Response(
       JSON.stringify({ success: false, error: 'An error occurred while processing the request' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });
