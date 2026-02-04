@@ -1,9 +1,17 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+// Dynamic CORS based on allowed origins
+function getCorsHeaders(req: Request) {
+  const allowedOrigins = (Deno.env.get('ALLOWED_ORIGINS') || 'https://dwelling-connect-pro.lovable.app,https://id-preview--05f7decd-ddff-49c1-86f2-98c702724fdb.lovable.app,http://localhost:5173,http://localhost:8080').split(',').filter(Boolean);
+  const origin = req.headers.get('origin') || '';
+  const allowedOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Access-Control-Allow-Credentials': 'true',
+  };
+}
 
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/1sQta9o2wRufsm9Kn7I9GRocNDviU-z9YgJb9m6uxIAo/export?format=csv';
 
@@ -94,6 +102,8 @@ function isValidEmail(email: string): boolean {
 }
 
 serve(async (req) => {
+  const corsHeaders = getCorsHeaders(req);
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -167,7 +177,7 @@ serve(async (req) => {
     console.error('Error validating email');
     return new Response(
       JSON.stringify({ valid: false, error: 'An error occurred. Please try again.' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
     );
   }
 });
