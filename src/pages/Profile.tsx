@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDemo } from '@/contexts/DemoContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -18,6 +19,7 @@ import {
   Edit,
   Loader2,
   X,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -36,10 +38,12 @@ const demoProfileUser = {
 };
 
 export default function Profile() {
-  const { user, role, updateProfile, isLoading } = useAuth();
+  const navigate = useNavigate();
+  const { user, role, updateProfile, logout, isLoading } = useAuth();
   const { isDemoMode } = useDemo();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [formData, setFormData] = useState({
     phone: '',
     email: '',
@@ -92,6 +96,18 @@ export default function Profile() {
     }
   };
 
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      toast.error('Failed to log out');
+    } finally {
+      setIsLoggingOut(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -111,14 +127,29 @@ export default function Profile() {
     <DashboardLayout>
       <div className="space-y-6 max-w-4xl mx-auto">
         {/* Header */}
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-            <User className="w-8 h-8 text-primary" />
-            My Profile
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            View and manage your personal information
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
+              <User className="w-8 h-8 text-primary" />
+              My Profile
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              View and manage your personal information
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            className="gap-2"
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+          >
+            {isLoggingOut ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <LogOut className="w-4 h-4" />
+            )}
+            Sign Out
+          </Button>
         </div>
 
         {/* Profile Card */}

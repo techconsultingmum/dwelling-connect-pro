@@ -148,14 +148,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       // First validate email against Google Sheet
-      const { data: validationData, error: validationError } = await supabase.functions.invoke('validate-sheet-email', {
-        body: { email }
-      });
+      let validationData;
+      let validationError;
+      
+      try {
+        const result = await supabase.functions.invoke('validate-sheet-email', {
+          body: { email }
+        });
+        validationData = result.data;
+        validationError = result.error;
+      } catch (err) {
+        console.error('Email validation request failed:', err);
+        validationError = { message: 'Unable to verify email at this time' };
+      }
 
       if (validationError || !validationData?.valid) {
-        return { 
-          success: false, 
-          error: validationData?.error || 'Email not found in society records. Please contact your manager.' 
+        // Rate limit error
+        if (validationData?.error?.includes('Rate limit')) {
+          return {
+            success: false,
+            error: 'Too many attempts. Please wait a minute and try again.'
+          };
+        }
+        return {
+          success: false,
+          error: validationData?.error || 'Email not registered. Please contact your society manager.'
         };
       }
 
@@ -203,14 +220,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = useCallback(async (email: string, password: string, name: string): Promise<{ success: boolean; error?: string }> => {
     try {
       // First validate email against Google Sheet
-      const { data: validationData, error: validationError } = await supabase.functions.invoke('validate-sheet-email', {
-        body: { email }
-      });
+      let validationData;
+      let validationError;
+      
+      try {
+        const result = await supabase.functions.invoke('validate-sheet-email', {
+          body: { email }
+        });
+        validationData = result.data;
+        validationError = result.error;
+      } catch (err) {
+        console.error('Email validation request failed:', err);
+        validationError = { message: 'Unable to verify email at this time' };
+      }
 
       if (validationError || !validationData?.valid) {
-        return { 
-          success: false, 
-          error: validationData?.error || 'Email not found in society records. Only registered society members can sign up.' 
+        // Rate limit error
+        if (validationData?.error?.includes('Rate limit')) {
+          return {
+            success: false,
+            error: 'Too many attempts. Please wait a minute and try again.'
+          };
+        }
+        return {
+          success: false,
+          error: validationData?.error || 'Email not registered. Only verified society members can sign up.'
         };
       }
 

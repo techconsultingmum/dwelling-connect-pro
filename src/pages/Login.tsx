@@ -1,17 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDemo } from '@/contexts/DemoContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Building2, Shield, User, Eye, EyeOff, Loader2, UserPlus, LogIn, ArrowLeft, Mail } from 'lucide-react';
+import { Building2, Shield, User, Eye, EyeOff, Loader2, UserPlus, LogIn, ArrowLeft, Mail, Play } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 
 export default function Login() {
   const navigate = useNavigate();
   const { login, signup, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { enterDemoMode } = useDemo();
   const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
@@ -103,6 +105,11 @@ export default function Login() {
     }
 
     setIsLoading(false);
+  };
+
+  const handleViewDemo = () => {
+    enterDemoMode();
+    navigate('/dashboard');
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -291,6 +298,25 @@ export default function Login() {
                   <div className="text-center mb-6">
                     <h2 className="text-2xl font-bold mb-2">Welcome Back</h2>
                     <p className="text-muted-foreground">Sign in with your registered email</p>
+                  </div>
+
+                  {/* Demo Mode Button */}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="lg"
+                    className="w-full mb-4 gap-2"
+                    onClick={handleViewDemo}
+                  >
+                    <Play className="w-4 h-4" />
+                    Try Demo Mode
+                  </Button>
+
+                  <div className="relative my-4">
+                    <Separator />
+                    <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-background px-2 text-xs text-muted-foreground">
+                      or sign in
+                    </span>
                   </div>
 
                   {/* Google OAuth Button */}
