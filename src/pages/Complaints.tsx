@@ -62,6 +62,7 @@ export default function Complaints() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [formErrors, setFormErrors] = useState<{ category?: string; description?: string }>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newComplaint, setNewComplaint] = useState({
     category: '',
     description: '',
@@ -78,31 +79,38 @@ export default function Complaints() {
     ? userComplaints
     : userComplaints.filter(c => c.status === statusFilter);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    
     setFormErrors({});
+    setIsSubmitting(true);
 
-    const result = complaintSchema.safeParse(newComplaint);
-    if (!result.success) {
-      const errors: { category?: string; description?: string } = {};
-      result.error.errors.forEach((err) => {
-        if (err.path[0] === 'category') errors.category = err.message;
-        if (err.path[0] === 'description') errors.description = err.message;
+    try {
+      const result = complaintSchema.safeParse(newComplaint);
+      if (!result.success) {
+        const errors: { category?: string; description?: string } = {};
+        result.error.errors.forEach((err) => {
+          if (err.path[0] === 'category') errors.category = err.message;
+          if (err.path[0] === 'description') errors.description = err.message;
+        });
+        setFormErrors(errors);
+        return;
+      }
+
+      addComplaint({
+        userId: currentUser?.memberId || '',
+        userName: currentUser?.name || '',
+        flatNo: currentUser?.flatNo || '',
+        category: newComplaint.category,
+        description: newComplaint.description.trim(),
+        status: 'open',
       });
-      setFormErrors(errors);
-      return;
+      setNewComplaint({ category: '', description: '' });
+      setIsDialogOpen(false);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    addComplaint({
-      userId: currentUser?.memberId || '',
-      userName: currentUser?.name || '',
-      flatNo: currentUser?.flatNo || '',
-      category: newComplaint.category,
-      description: newComplaint.description.trim(),
-      status: 'open',
-    });
-    setNewComplaint({ category: '', description: '' });
-    setIsDialogOpen(false);
   };
 
   const statusConfig = {
@@ -224,8 +232,9 @@ export default function Complaints() {
                       type="submit" 
                       variant="gradient" 
                       className="flex-1"
+                      disabled={isSubmitting}
                     >
-                      Submit Complaint
+                      {isSubmitting ? 'Submitting...' : 'Submit Complaint'}
                     </Button>
                   </div>
                 </form>

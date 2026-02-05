@@ -36,6 +36,7 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  AlertTriangle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -111,6 +112,7 @@ export default function AdminUsers() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [updating, setUpdating] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     user: UserWithRole | null;
@@ -119,6 +121,7 @@ export default function AdminUsers() {
 
   const fetchUsers = async () => {
     setIsLoading(true);
+    setFetchError(null);
     
     // In demo mode, use demo data
     if (isDemoMode) {
@@ -138,6 +141,7 @@ export default function AdminUsers() {
       setUsers(data.users || []);
     } catch (error) {
       console.error('Error fetching users:', error);
+      setFetchError('Failed to fetch users. Please try again.');
       toast.error('Failed to fetch users');
     } finally {
       setIsLoading(false);
@@ -277,6 +281,16 @@ export default function AdminUsers() {
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {fetchError && (
+              <div className="mb-4 p-3 rounded-lg bg-destructive/10 border border-destructive/20 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0" />
+                <p className="text-sm text-destructive">{fetchError}</p>
+                <Button variant="outline" size="sm" onClick={fetchUsers} className="ml-auto">
+                  Retry
+                </Button>
+              </div>
+            )}
+            
             {/* Search */}
             <div className="relative mb-6">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />

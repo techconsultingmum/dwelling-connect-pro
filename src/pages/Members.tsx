@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { User } from '@/types';
+import { toast } from 'sonner';
 
 export default function Members() {
   const { role } = useAuth();
@@ -44,6 +45,7 @@ export default function Members() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMember, setSelectedMember] = useState<User | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   // Role check is now handled by App.tsx routes
 
@@ -58,9 +60,17 @@ export default function Members() {
   }, [members, searchQuery]);
 
   const handleRefresh = async () => {
+    setSyncError(null);
     setIsRefreshing(true);
-    await syncFromGoogleSheet();
-    setIsRefreshing(false);
+    try {
+      await syncFromGoogleSheet();
+      toast.success('Data synced successfully');
+    } catch (error) {
+      setSyncError('Failed to sync data. Please try again.');
+      toast.error('Failed to sync data');
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const statusColors = {

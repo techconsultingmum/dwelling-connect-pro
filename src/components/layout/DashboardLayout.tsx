@@ -14,6 +14,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Skip to main content link for accessibility */}
+      <a 
+        href="#main-content" 
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[60] focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:shadow-lg focus:outline-none"
+      >
+        Skip to main content
+      </a>
+      
       {isDemoMode && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground py-2 px-4">
           <div className="container mx-auto flex items-center justify-between">
@@ -57,6 +65,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       <main 
         className={`lg:pl-72 pt-16 lg:pt-0 min-h-screen transition-[margin-top] duration-200 ${isDemoMode ? 'mt-10' : ''}`}
         role="main"
+        id="main-content"
+        tabIndex={-1}
       >
         <div className="p-4 lg:p-8 max-w-7xl">
           {children}

@@ -36,13 +36,14 @@ import {
 import { cn } from '@/lib/utils';
 import { Notice } from '@/types';
 import { z } from 'zod';
+import { toast } from 'sonner';
 
 const noticeSchema = z.object({
   title: z.string()
-    .min(3, 'Title must be at least 3 characters')
+    .min(5, 'Title must be at least 5 characters')
     .max(100, 'Title must be less than 100 characters'),
   description: z.string()
-    .min(10, 'Description must be at least 10 characters')
+    .min(20, 'Description must be at least 20 characters')
     .max(1000, 'Description must be less than 1000 characters'),
   priority: z.enum(['low', 'medium', 'high']),
 });
@@ -52,7 +53,8 @@ export default function Notices() {
   const { isDemoMode } = useDemo();
   const { notices, addNotice } = useData();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formErrors, setFormErrors] = useState<{ title?: string; description?: string }>({});
+  const [formErrors, setFormErrors] = useState<{ title?: string; description?: string; priority?: string }>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newNotice, setNewNotice] = useState({
     title: '',
     description: '',
@@ -62,30 +64,38 @@ export default function Notices() {
   const isManager = isDemoMode ? true : role === 'manager';
   const currentUser = isDemoMode ? { name: 'Demo Manager' } : user;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    
     setFormErrors({});
+    setIsSubmitting(true);
 
-    const result = noticeSchema.safeParse(newNotice);
-    if (!result.success) {
-      const errors: { title?: string; description?: string } = {};
-      result.error.errors.forEach((err) => {
-        if (err.path[0] === 'title') errors.title = err.message;
-        if (err.path[0] === 'description') errors.description = err.message;
+    try {
+      const result = noticeSchema.safeParse(newNotice);
+      if (!result.success) {
+        const errors: { title?: string; description?: string; priority?: string } = {};
+        result.error.errors.forEach((err) => {
+          if (err.path[0] === 'title') errors.title = err.message;
+          if (err.path[0] === 'description') errors.description = err.message;
+          if (err.path[0] === 'priority') errors.priority = err.message;
+        });
+        setFormErrors(errors);
+        return;
+      }
+
+      addNotice({
+        title: newNotice.title.trim(),
+        description: newNotice.description.trim(),
+        priority: newNotice.priority,
+        date: new Date().toISOString().split('T')[0],
+        createdBy: currentUser?.name || 'Manager',
       });
-      setFormErrors(errors);
-      return;
+      setNewNotice({ title: '', description: '', priority: 'medium' });
+      setIsDialogOpen(false);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    addNotice({
-      title: newNotice.title.trim(),
-      description: newNotice.description.trim(),
-      priority: newNotice.priority,
-      date: new Date().toISOString().split('T')[0],
-      createdBy: currentUser?.name || 'Manager',
-    });
-    setNewNotice({ title: '', description: '', priority: 'medium' });
-    setIsDialogOpen(false);
   };
 
   const priorityConfig = {
@@ -209,8 +219,13 @@ export default function Notices() {
                     >
                       Cancel
                     </Button>
-                    <Button type="submit" variant="gradient" className="flex-1">
-                      Publish Notice
+                    <Button 
+                      type="submit" 
+                      variant="gradient" 
+                      className="flex-1"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? 'Publishing...' : 'Publish Notice'}
                     </Button>
                   </div>
                 </form>

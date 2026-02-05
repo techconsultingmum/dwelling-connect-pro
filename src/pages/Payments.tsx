@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useState } from 'react';
 import { useDemo } from '@/contexts/DemoContext';
 import { useData } from '@/contexts/DataContext';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
@@ -26,6 +27,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { EmptyState } from '@/components/ui/empty-state';
 
 // Demo user data
 const demoUser = {
@@ -39,6 +41,7 @@ export default function Payments() {
   const { user, role } = useAuth();
   const { isDemoMode } = useDemo();
   const { bills, members, stats, isLoading, syncFromGoogleSheet } = useData();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const currentUser = isDemoMode ? demoUser : user;
   const isManager = isDemoMode ? true : role === 'manager';
@@ -56,7 +59,7 @@ export default function Payments() {
     .filter(b => b.status === 'paid')
     .reduce((sum, b) => sum + b.amount, 0);
 
-  const statusConfig = {
+  const statusConfig: Record<string, { color: string; icon: typeof CheckCircle2 }> = {
     paid: {
       color: 'bg-success/10 text-success border-success/20',
       icon: CheckCircle2,
@@ -71,8 +74,13 @@ export default function Payments() {
     },
   };
 
-  const handleRefresh = () => {
-    syncFromGoogleSheet();
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await syncFromGoogleSheet();
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   return (
@@ -96,9 +104,9 @@ export default function Payments() {
               variant="outline" 
               className="gap-2"
               onClick={handleRefresh}
-              disabled={isLoading}
+              disabled={isLoading || isRefreshing}
             >
-              <RefreshCw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+              <RefreshCw className={cn("w-4 h-4", (isLoading || isRefreshing) && "animate-spin")} />
               Sync Data
             </Button>
             <Button variant="outline" className="gap-2">
