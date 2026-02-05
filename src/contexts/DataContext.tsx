@@ -3,6 +3,7 @@ import { User, Notice, Complaint, MaintenanceBill, DashboardStats } from '@/type
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
+import { sanitizeText } from '@/lib/validation';
 
 interface DataContextType {
   members: User[];
@@ -22,6 +23,9 @@ const DataContext = createContext<DataContextType | undefined>(undefined);
 
 // Webhook URL for optional integrations (should be moved to env variable in production)
 const WEBHOOK_URL = import.meta.env.VITE_WEBHOOK_URL || '';
+
+// Generate a unique ID for demo data
+const generateId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 
 // Demo data
 const demoNotices: Notice[] = [
@@ -217,8 +221,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const addNotice = useCallback((notice: Omit<Notice, 'id'>) => {
     const newNotice: Notice = {
-      ...notice,
-      id: Date.now().toString(),
+      id: generateId(),
+      title: sanitizeText(notice.title),
+      description: sanitizeText(notice.description),
+      date: notice.date,
+      createdBy: notice.createdBy,
+      priority: notice.priority,
     };
     setNotices(prev => [newNotice, ...prev]);
     toast.success('Notice published successfully');
@@ -227,8 +235,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const addComplaint = useCallback((complaint: Omit<Complaint, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
     const newComplaint: Complaint = {
-      ...complaint,
-      id: Date.now().toString(),
+      id: generateId(),
+      userId: complaint.userId,
+      userName: complaint.userName,
+      flatNo: complaint.flatNo,
+      category: complaint.category,
+      description: sanitizeText(complaint.description),
+      status: complaint.status,
       createdAt: now,
       updatedAt: now,
     };

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Building2, Lock, Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
+import { passwordSchema } from '@/lib/validation';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -41,8 +42,10 @@ export default function ResetPassword() {
     setIsLoading(true);
     setError('');
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    // Validate password with schema
+    const validation = passwordSchema.safeParse(password);
+    if (!validation.success) {
+      setError(validation.error.errors[0]?.message || 'Invalid password');
       setIsLoading(false);
       return;
     }
@@ -103,6 +106,7 @@ export default function ResetPassword() {
           <form onSubmit={handleResetPassword} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="password">New Password</Label>
+                  <p className="text-xs text-muted-foreground">Minimum 6 characters</p>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
@@ -113,6 +117,9 @@ export default function ResetPassword() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10 pr-10"
                   required
+                  minLength={6}
+                  maxLength={72}
+                  autoComplete="new-password"
                 />
                 <button
                   type="button"

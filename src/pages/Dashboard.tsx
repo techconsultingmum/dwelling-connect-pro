@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // Demo user data
 const demoUser = {
@@ -40,8 +41,12 @@ export default function Dashboard() {
   const currentUser = isDemoMode ? demoUser : user;
   const isManager = isDemoMode ? true : role === 'manager'; // Demo as manager to show all features
 
-  const userBills = bills.filter(b => b.userId === currentUser?.memberId);
-  const userComplaints = complaints.filter(c => c.userId === currentUser?.memberId);
+  const userBills = currentUser?.memberId 
+    ? bills.filter(b => b.userId === currentUser.memberId) 
+    : [];
+  const userComplaints = currentUser?.memberId 
+    ? complaints.filter(c => c.userId === currentUser.memberId) 
+    : [];
 
   return (
     <DashboardLayout>

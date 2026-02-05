@@ -118,6 +118,22 @@
     @apply font-semibold tracking-tight;
   }
 
+  /* Focus visible outline for accessibility */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Reduce motion for users who prefer it */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
   /* Screen reader only utility */
   .sr-only:not(:focus):not(:focus-within) {
     position: absolute;
