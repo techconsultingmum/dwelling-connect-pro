@@ -1,0 +1,97 @@
+-- Fix RLS policies - PostgreSQL policies are PERMISSIVE by default
+-- RESTRICTIVE policies require explicit AS RESTRICTIVE after policy name
+-- The issue is the existing policies might have been created incorrectly
+
+-- ============================================
+-- FIX PROFILES TABLE POLICIES
+-- ============================================
+DROP POLICY IF EXISTS "Users can view their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Managers can view all profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update their own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert their own profile" ON public.profiles;
+
+-- These are PERMISSIVE by default (no AS clause needed)
+CREATE POLICY "Users can view their own profile"
+ON public.profiles FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Managers can view all profiles"
+ON public.profiles FOR SELECT
+TO authenticated
+USING (public.has_role(auth.uid(), 'manager'));
+
+CREATE POLICY "Users can update their own profile"
+ON public.profiles FOR UPDATE
+TO authenticated
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert their own profile"
+ON public.profiles FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = user_id);
+
+-- ============================================
+-- FIX USER_ROLES TABLE POLICIES
+-- ============================================
+DROP POLICY IF EXISTS "Users can view their own roles" ON public.user_roles;
+DROP POLICY IF EXISTS "Managers can view all roles" ON public.user_roles;
+DROP POLICY IF EXISTS "No direct role inserts allowed" ON public.user_roles;
+DROP POLICY IF EXISTS "No direct role updates allowed" ON public.user_roles;
+DROP POLICY IF EXISTS "No direct role deletes allowed" ON public.user_roles;
+
+-- SELECT policies - PERMISSIVE (default) for OR-logic
+CREATE POLICY "Users can view their own roles"
+ON public.user_roles FOR SELECT
+TO authenticated
+USING (auth.uid() = user_id);
+
+CREATE POLICY "Managers can view all roles"
+ON public.user_roles FOR SELECT
+TO authenticated
+USING (public.has_role(auth.uid(), 'manager'));
+
+-- Block all direct modifications with RESTRICTIVE policies
+CREATE POLICY "No direct role inserts allowed" ON public.user_roles
+AS RESTRICTIVE FOR INSERT
+TO authenticated
+WITH CHECK (false);
+
+CREATE POLICY "No direct role updates allowed" ON public.user_roles
+AS RESTRICTIVE FOR UPDATE
+TO authenticated
+USING (false);
+
+CREATE POLICY "No direct role deletes allowed" ON public.user_roles
+AS RESTRICTIVE FOR DELETE
+TO authenticated
+USING (false);
+
+-- ============================================
+-- FIX MESSAGES TABLE POLICIES
+-- ============================================
+DROP POLICY IF EXISTS "Users can view their own messages" ON public.messages;
+DROP POLICY IF EXISTS "Users can send messages" ON public.messages;
+DROP POLICY IF EXISTS "Users can mark received messages as read" ON public.messages;
+DROP POLICY IF EXISTS "Users can delete their own sent messages" ON public.messages;
+
+CREATE POLICY "Users can view their own messages"
+ON public.messages FOR SELECT
+TO authenticated
+USING (auth.uid() = sender_id OR auth.uid() = receiver_id);
+
+CREATE POLICY "Users can send messages"
+ON public.messages FOR INSERT
+TO authenticated
+WITH CHECK (auth.uid() = sender_id);
+
+CREATE POLICY "Users can mark received messages as read"
+ON public.messages FOR UPDATE
+TO authenticated
+USING (auth.uid() = receiver_id)
+WITH CHECK (is_read = true);
+
+CREATE POLICY "Users can delete their own sent messages"
+ON public.messages FOR DELETE
+TO authenticated
+USING (auth.uid() = sender_id);
