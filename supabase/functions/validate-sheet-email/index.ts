@@ -1,5 +1,4 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Dynamic CORS based on allowed origins
 function getCorsHeaders(req: Request) {
@@ -14,9 +13,6 @@ function getCorsHeaders(req: Request) {
     'Content-Type': 'application/json',
   };
 }
-
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/1sQta9o2wRufsm9Kn7I9GRocNDviU-z9YgJb9m6uxIAo/export?format=csv';
 
@@ -106,9 +102,9 @@ function isValidEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
-// Simple in-memory rate limiting (per function instance)
+// Rate limiting by IP address (per function instance)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 10; // requests per window
+const RATE_LIMIT = 5; // requests per window - strict for unauthenticated endpoint
 const WINDOW_MS = 60000; // 1 minute
 
 function checkRateLimit(identifier: string): boolean {
@@ -143,6 +139,24 @@ async function getSheetMembers(): Promise<SheetMember[]> {
   return members;
 }
 
+// Get client IP for rate limiting
+function getClientIP(req: Request): string {
+  // Check common headers for client IP (in order of reliability)
+  const forwardedFor = req.headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    // X-Forwarded-For can contain multiple IPs; take the first one
+    return forwardedFor.split(',')[0].trim();
+  }
+  
+  const realIP = req.headers.get('x-real-ip');
+  if (realIP) {
+    return realIP;
+  }
+  
+  // Fallback to a default identifier (shouldn't happen in production)
+  return 'unknown';
+}
+
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   
@@ -151,32 +165,9 @@ serve(async (req) => {
   }
 
   try {
-    // Require authentication
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return new Response(
-        JSON.stringify({ valid: false, error: 'Authentication required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
-      return new Response(
-        JSON.stringify({ valid: false, error: 'Invalid authentication' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const userId = claimsData.claims.sub as string;
-
-    // Apply rate limiting per user
-    if (!checkRateLimit(userId)) {
+    // Apply rate limiting by IP address (for unauthenticated access during login/signup)
+    const clientIP = getClientIP(req);
+    if (!checkRateLimit(clientIP)) {
       return new Response(
         JSON.stringify({ valid: false, error: 'Rate limit exceeded. Try again later.' }),
         { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -226,8 +217,8 @@ serve(async (req) => {
     
     if (member) {
       return new Response(
-        JSON.stringify({ 
-          valid: true, 
+        JSON.stringify({
+          valid: true,
           member: {
             memberId: member.memberId,
             name: member.name,
@@ -241,8 +232,9 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
+      // Use generic error message to prevent email enumeration
       return new Response(
-        JSON.stringify({ valid: false, error: 'Email not found in society records' }),
+        JSON.stringify({ valid: false, error: 'Email not registered. Please contact your society manager.' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
