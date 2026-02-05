@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 // Dynamic CORS based on allowed origins
 function getCorsHeaders(req: Request) {
@@ -13,6 +14,9 @@ function getCorsHeaders(req: Request) {
     'Content-Type': 'application/json',
   };
 }
+
+const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
 const CSV_URL = 'https://docs.google.com/spreadsheets/d/1sQta9o2wRufsm9Kn7I9GRocNDviU-z9YgJb9m6uxIAo/export?format=csv';
 
@@ -102,6 +106,43 @@ function isValidEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
+// Simple in-memory rate limiting (per function instance)
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT = 10; // requests per window
+const WINDOW_MS = 60000; // 1 minute
+
+function checkRateLimit(identifier: string): boolean {
+  const now = Date.now();
+  const record = rateLimitMap.get(identifier);
+  
+  if (!record || now > record.resetAt) {
+    rateLimitMap.set(identifier, { count: 1, resetAt: now + WINDOW_MS });
+    return true;
+  }
+  
+  if (record.count >= RATE_LIMIT) {
+    return false;
+  }
+  
+  record.count++;
+  return true;
+}
+
+// Cache for Google Sheets data to reduce external API calls
+let cachedSheetData: { data: SheetMember[]; timestamp: number } | null = null;
+const CACHE_TTL = 300000; // 5 minutes
+
+async function getSheetMembers(): Promise<SheetMember[]> {
+  const now = Date.now();
+  if (cachedSheetData && now - cachedSheetData.timestamp < CACHE_TTL) {
+    return cachedSheetData.data;
+  }
+  
+  const members = await fetchSheetEmails();
+  cachedSheetData = { data: members, timestamp: now };
+  return members;
+}
+
 serve(async (req) => {
   const corsHeaders = getCorsHeaders(req);
   
@@ -110,6 +151,38 @@ serve(async (req) => {
   }
 
   try {
+    // Require authentication
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ valid: false, error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: claimsData, error: claimsError } = await supabaseClient.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims) {
+      return new Response(
+        JSON.stringify({ valid: false, error: 'Invalid authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userId = claimsData.claims.sub as string;
+
+    // Apply rate limiting per user
+    if (!checkRateLimit(userId)) {
+      return new Response(
+        JSON.stringify({ valid: false, error: 'Rate limit exceeded. Try again later.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     let email: string;
     
     try {
@@ -141,7 +214,7 @@ serve(async (req) => {
     
     let members: SheetMember[];
     try {
-      members = await fetchSheetEmails();
+      members = await getSheetMembers();
     } catch {
       return new Response(
         JSON.stringify({ valid: false, error: 'Unable to verify email at this time. Please try again later.' }),

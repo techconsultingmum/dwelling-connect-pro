@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { sanitizeText } from '@/lib/validation';
 
 export interface Message {
   id: string;
@@ -109,12 +110,16 @@ export function useRealtimeChat(partnerId: string | null) {
 
   // Send a message
   const sendMessage = useCallback(async (messageText: string) => {
-    if (!user?.userId || !partnerId || !messageText.trim()) return false;
+    const trimmedMessage = messageText.trim();
+    if (!user?.userId || !partnerId || !trimmedMessage) return false;
+
+    // Sanitize message content for defense-in-depth against XSS
+    const sanitizedMessage = sanitizeText(trimmedMessage);
 
     const { error } = await supabase.from('messages').insert({
       sender_id: user.userId,
       receiver_id: partnerId,
-      message: messageText.trim(),
+      message: sanitizedMessage,
     });
 
     return !error;
