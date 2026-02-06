@@ -327,11 +327,9 @@ export default function Profile() {
               </div>
 
               <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                <p className="text-sm text-primary font-medium mb-1">Society Address</p>
+                <p className="text-sm text-primary font-medium mb-1">Society</p>
                 <p className="text-sm text-muted-foreground">
-                  Harmony Heights Co-operative Housing Society<br />
-                  123 Main Street, Sector 15<br />
-                  Mumbai, Maharashtra 400001
+                  View society details in Settings
                 </p>
               </div>
             </CardContent>

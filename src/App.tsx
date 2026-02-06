@@ -20,6 +20,7 @@ import Chat from "./pages/Chat";
 import Payments from "./pages/Payments";
 import Profile from "./pages/Profile";
 import AdminUsers from "./pages/AdminUsers";
+import SocietySettings from "./pages/SocietySettings";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -87,6 +88,11 @@ const App = () => (
                     <Route path="/admin/users" element={
                       <ProtectedRoute requireRole="manager">
                         <AdminUsers />
+                      </ProtectedRoute>
+                    } />
+                    <Route path="/admin/settings" element={
+                      <ProtectedRoute requireRole="manager">
+                        <SocietySettings />
                       </ProtectedRoute>
                     } />
                     
