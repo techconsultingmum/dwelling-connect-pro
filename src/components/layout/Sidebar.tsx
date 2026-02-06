@@ -32,6 +32,7 @@ const navItems: NavItem[] = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/dashboard' },
   { icon: Users, label: 'Members', path: '/members', managerOnly: true },
   { icon: UserCog, label: 'User Management', path: '/admin/users', managerOnly: true },
+  { icon: Settings, label: 'Society Settings', path: '/admin/settings', managerOnly: true },
   { icon: FileText, label: 'Notices', path: '/notices' },
   { icon: AlertCircle, label: 'Complaints', path: '/complaints' },
   { icon: MessageSquare, label: 'Chat', path: '/chat' },

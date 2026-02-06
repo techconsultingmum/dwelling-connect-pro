@@ -88,8 +88,8 @@ export default function Login() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
       setIsLoading(false);
       return;
     }
@@ -533,11 +533,11 @@ export default function Login() {
                     <Input
                       id="signup-password"
                       type={showPassword ? 'text' : 'password'}
-                      placeholder="Create a password (min 6 characters)"
+                      placeholder="Create a password (min 8 characters)"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      minLength={6}
+                      minLength={8}
                       maxLength={72}
                       autoComplete="new-password"
                     />
@@ -550,8 +550,8 @@ export default function Login() {
                       {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                     </button>
                   </div>
-                  {password && password.length > 0 && password.length < 6 && (
-                    <p className="text-xs text-warning">Password must be at least 6 characters</p>
+                  {password && password.length > 0 && password.length < 8 && (
+                    <p className="text-xs text-warning">Password must be at least 8 characters</p>
                   )}
                 </div>
 

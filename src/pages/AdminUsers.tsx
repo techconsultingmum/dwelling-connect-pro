@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -26,6 +27,14 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { 
   Shield, 
   Users, 
@@ -37,6 +46,8 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
+  Edit,
+  Save,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -48,7 +59,16 @@ interface UserWithRole {
   flat_no: string | null;
   wing: string | null;
   phone: string | null;
+  member_id: string | null;
   role: 'manager' | 'user';
+}
+
+interface EditProfileForm {
+  name: string;
+  phone: string;
+  flat_no: string;
+  wing: string;
+  member_id: string;
 }
 
 // Demo users data
@@ -61,6 +81,7 @@ const demoUsers: UserWithRole[] = [
     flat_no: '101',
     wing: 'A',
     phone: '+91 98765 43210',
+    member_id: 'MGR001',
     role: 'manager',
   },
   {
@@ -71,6 +92,7 @@ const demoUsers: UserWithRole[] = [
     flat_no: '205',
     wing: 'B',
     phone: '+91 98765 12345',
+    member_id: 'USR001',
     role: 'user',
   },
   {
@@ -81,6 +103,7 @@ const demoUsers: UserWithRole[] = [
     flat_no: '302',
     wing: 'A',
     phone: '+91 98765 23456',
+    member_id: 'USR002',
     role: 'user',
   },
   {
@@ -91,6 +114,7 @@ const demoUsers: UserWithRole[] = [
     flat_no: '101',
     wing: 'C',
     phone: '+91 98765 34567',
+    member_id: 'USR003',
     role: 'user',
   },
   {
@@ -101,6 +125,7 @@ const demoUsers: UserWithRole[] = [
     flat_no: '401',
     wing: 'A',
     phone: '+91 98765 45678',
+    member_id: 'MGR002',
     role: 'manager',
   },
 ];
@@ -118,6 +143,14 @@ export default function AdminUsers() {
     user: UserWithRole | null;
     newRole: 'manager' | 'user';
   }>({ open: false, user: null, newRole: 'user' });
+  const [editDialog, setEditDialog] = useState<{
+    open: boolean;
+    user: UserWithRole | null;
+  }>({ open: false, user: null });
+  const [editForm, setEditForm] = useState<EditProfileForm>({
+    name: '', phone: '', flat_no: '', wing: '', member_id: '',
+  });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -197,6 +230,67 @@ export default function AdminUsers() {
     } finally {
       setUpdating(null);
       setConfirmDialog({ open: false, user: null, newRole: 'user' });
+    }
+  };
+
+  const openEditDialog = (user: UserWithRole) => {
+    setEditForm({
+      name: user.name || '',
+      phone: user.phone || '',
+      flat_no: user.flat_no || '',
+      wing: user.wing || '',
+      member_id: user.member_id || '',
+    });
+    setEditDialog({ open: true, user });
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editDialog.user) return;
+    setIsSavingProfile(true);
+
+    if (isDemoMode) {
+      setTimeout(() => {
+        setUsers(prev => prev.map(u =>
+          u.user_id === editDialog.user?.user_id
+            ? { ...u, name: editForm.name, phone: editForm.phone, flat_no: editForm.flat_no, wing: editForm.wing, member_id: editForm.member_id }
+            : u
+        ));
+        setEditDialog({ open: false, user: null });
+        setIsSavingProfile(false);
+        toast.success('Profile updated (demo mode)');
+      }, 500);
+      return;
+    }
+
+    try {
+      const { error } = await supabase.functions.invoke('manage-user-role', {
+        body: {
+          action: 'update-profile',
+          targetUserId: editDialog.user.user_id,
+          profileUpdates: {
+            name: editForm.name,
+            phone: editForm.phone,
+            flat_no: editForm.flat_no,
+            wing: editForm.wing,
+            member_id: editForm.member_id,
+          },
+        },
+      });
+
+      if (error) throw error;
+
+      setUsers(prev => prev.map(u =>
+        u.user_id === editDialog.user?.user_id
+          ? { ...u, name: editForm.name, phone: editForm.phone, flat_no: editForm.flat_no, wing: editForm.wing, member_id: editForm.member_id }
+          : u
+      ));
+      setEditDialog({ open: false, user: null });
+      toast.success('Profile updated successfully');
+    } catch (error: any) {
+      console.error('Error updating profile:', error);
+      toast.error(error.message || 'Failed to update profile');
+    } finally {
+      setIsSavingProfile(false);
     }
   };
 
@@ -364,33 +458,39 @@ export default function AdminUsers() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            {updating === user.user_id ? (
-                              <Loader2 className="w-4 h-4 animate-spin ml-auto" />
-                            ) : isCurrentUser ? (
-                              <span className="text-xs text-muted-foreground">Cannot modify</span>
-                            ) : (
-                              <Button
-                                variant={isManager ? 'outline' : 'default'}
-                                size="sm"
-                                onClick={() => setConfirmDialog({
-                                  open: true,
-                                  user,
-                                  newRole: isManager ? 'user' : 'manager'
-                                })}
-                              >
-                                {isManager ? (
-                                  <>
-                                    <XCircle className="w-4 h-4 mr-1" />
-                                    Demote
-                                  </>
-                                ) : (
-                                  <>
-                                    <CheckCircle2 className="w-4 h-4 mr-1" />
-                                    Promote
-                                  </>
-                                )}
-                              </Button>
-                            )}
+                            <div className="flex items-center justify-end gap-2">
+                              {updating === user.user_id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => openEditDialog(user)}
+                                  >
+                                    <Edit className="w-4 h-4 mr-1" />
+                                    Edit
+                                  </Button>
+                                  {!isCurrentUser && (
+                                    <Button
+                                      variant={isManager ? 'outline' : 'default'}
+                                      size="sm"
+                                      onClick={() => setConfirmDialog({
+                                        open: true,
+                                        user,
+                                        newRole: isManager ? 'user' : 'manager'
+                                      })}
+                                    >
+                                      {isManager ? (
+                                        <><XCircle className="w-4 h-4 mr-1" /> Demote</>
+                                      ) : (
+                                        <><CheckCircle2 className="w-4 h-4 mr-1" /> Promote</>
+                                      )}
+                                    </Button>
+                                  )}
+                                </>
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -434,6 +534,83 @@ export default function AdminUsers() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={editDialog.open} onOpenChange={(open) => 
+        setEditDialog(prev => ({ ...prev, open }))
+      }>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Member Profile</DialogTitle>
+            <DialogDescription>
+              Update details for {editDialog.user?.name || editDialog.user?.email}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit-name">Full Name</Label>
+              <Input
+                id="edit-name"
+                value={editForm.name}
+                onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
+                maxLength={100}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-phone">Phone Number</Label>
+              <Input
+                id="edit-phone"
+                value={editForm.phone}
+                onChange={(e) => setEditForm(prev => ({ ...prev, phone: e.target.value }))}
+                maxLength={20}
+                placeholder="+91 98765 43210"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-flat">Flat No</Label>
+                <Input
+                  id="edit-flat"
+                  value={editForm.flat_no}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, flat_no: e.target.value }))}
+                  maxLength={20}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-wing">Wing</Label>
+                <Input
+                  id="edit-wing"
+                  value={editForm.wing}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, wing: e.target.value }))}
+                  maxLength={10}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-member-id">Member ID</Label>
+              <Input
+                id="edit-member-id"
+                value={editForm.member_id}
+                onChange={(e) => setEditForm(prev => ({ ...prev, member_id: e.target.value }))}
+                maxLength={20}
+                placeholder="USR001"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialog({ open: false, user: null })} disabled={isSavingProfile}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveProfile} disabled={isSavingProfile}>
+              {isSavingProfile ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
+              ) : (
+                <><Save className="w-4 h-4 mr-2" /> Save Changes</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

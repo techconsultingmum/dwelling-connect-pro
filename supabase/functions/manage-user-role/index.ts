@@ -67,7 +67,7 @@ serve(async (req) => {
       );
     }
 
-    const { action, targetUserId, role } = await req.json();
+    const { action, targetUserId, role, profileUpdates } = await req.json();
 
     if (action === 'list') {
       // Get all users with their profiles and roles
@@ -131,6 +131,49 @@ serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true, message: `User role updated to ${role}` }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (action === 'update-profile') {
+      
+      if (!targetUserId) {
+        return new Response(
+          JSON.stringify({ error: 'targetUserId is required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Sanitize and validate updates
+      const allowedFields = ['name', 'phone', 'flat_no', 'wing', 'member_id'];
+      const sanitized: Record<string, string> = {};
+      
+      if (profileUpdates && typeof profileUpdates === 'object') {
+        for (const [key, value] of Object.entries(profileUpdates)) {
+          if (allowedFields.includes(key) && typeof value === 'string' && value.length <= 200) {
+            sanitized[key] = value.trim();
+          }
+        }
+      }
+
+      if (Object.keys(sanitized).length === 0) {
+        return new Response(
+          JSON.stringify({ error: 'No valid fields to update' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { error: updateError } = await supabaseAdmin
+        .from('profiles')
+        .update(sanitized)
+        .eq('user_id', targetUserId);
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, message: 'Profile updated successfully' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
