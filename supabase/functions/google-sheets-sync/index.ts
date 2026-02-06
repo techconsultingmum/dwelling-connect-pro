@@ -15,7 +15,7 @@ function getCorsHeaders(req: Request) {
   };
 }
 
-const CSV_URL = 'https://docs.google.com/spreadsheets/d/1sQta9o2wRufsm9Kn7I9GRocNDviU-z9YgJb9m6uxIAo/export?format=csv';
+const CSV_URL = Deno.env.get('GOOGLE_SHEET_CSV_URL') || '';
 
 interface Member {
   memberId: string;

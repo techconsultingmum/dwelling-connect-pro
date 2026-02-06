@@ -14,7 +14,7 @@ export const emailSchema = z
 // Password validation schema
 export const passwordSchema = z
   .string()
-  .min(6, 'Password must be at least 6 characters')
+  .min(8, 'Password must be at least 8 characters')
   .max(72, 'Password must be less than 72 characters');
 
 // Name validation schema
