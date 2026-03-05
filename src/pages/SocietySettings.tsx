@@ -76,10 +76,24 @@ export default function SocietySettings() {
         .from('society_settings')
         .select('*')
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       
+      if (!data) {
+        // No settings row yet - show defaults
+        const defaults: SocietySettings = {
+          id: '',
+          name: 'My Housing Society',
+          address_line1: '', address_line2: '', city: '', state: '',
+          pincode: '', contact_phone: '', contact_email: '', registration_number: '',
+        };
+        setSettings(defaults);
+        setFormData(defaults);
+        setIsLoading(false);
+        return;
+      }
+
       const s: SocietySettings = {
         id: data.id,
         name: data.name,
