@@ -47,7 +47,6 @@ export default function Profile() {
   const [formData, setFormData] = useState({
     phone: '',
     email: '',
-    emergencyContact: '',
   });
 
   // Use demo user in demo mode
@@ -60,7 +59,6 @@ export default function Profile() {
       setFormData({
         phone: currentUser.phone || '',
         email: currentUser.email || '',
-        emergencyContact: currentUser.emergencyContact || '',
       });
     }
   }, [currentUser]);
@@ -71,7 +69,6 @@ export default function Profile() {
       setFormData({
         phone: currentUser.phone || '',
         email: currentUser.email || '',
-        emergencyContact: currentUser.emergencyContact || '',
       });
     }
     setIsEditing(false);
@@ -261,14 +258,12 @@ export default function Profile() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="emergency">Emergency Contact</Label>
+                <Label htmlFor="member-id">Member ID</Label>
                 <Input
-                  id="emergency"
-                  placeholder="Enter emergency contact"
-                  value={isEditing ? formData.emergencyContact : currentUser?.emergencyContact || ''}
-                  onChange={(e) => setFormData({ ...formData, emergencyContact: e.target.value })}
-                  disabled={!isEditing}
-                  className={!isEditing ? 'bg-muted' : ''}
+                  id="member-id"
+                  value={currentUser?.memberId || 'Not assigned'}
+                  disabled
+                  className="bg-muted"
                 />
               </div>
             </CardContent>
