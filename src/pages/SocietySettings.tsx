@@ -128,20 +128,42 @@ export default function SocietySettings() {
     
     setIsSaving(true);
     try {
-      const { error } = await supabase
-        .from('society_settings')
-        .update({
-          name: formData.name,
-          address_line1: formData.address_line1,
-          address_line2: formData.address_line2,
-          city: formData.city,
-          state: formData.state,
-          pincode: formData.pincode,
-          contact_phone: formData.contact_phone,
-          contact_email: formData.contact_email,
-          registration_number: formData.registration_number,
-        })
-        .eq('id', settings.id);
+      const payload = {
+        name: formData.name,
+        address_line1: formData.address_line1,
+        address_line2: formData.address_line2,
+        city: formData.city,
+        state: formData.state,
+        pincode: formData.pincode,
+        contact_phone: formData.contact_phone,
+        contact_email: formData.contact_email,
+        registration_number: formData.registration_number,
+      };
+
+      let error;
+      if (settings.id) {
+        // Update existing row
+        const result = await supabase
+          .from('society_settings')
+          .update(payload)
+          .eq('id', settings.id);
+        error = result.error;
+      } else {
+        // Insert new row (first time setup)
+        const result = await supabase
+          .from('society_settings')
+          .insert(payload)
+          .select()
+          .single();
+        error = result.error;
+        if (!error && result.data) {
+          setSettings({ ...settings, ...formData, id: result.data.id } as SocietySettings);
+          setIsEditing(false);
+          toast.success('Society settings saved successfully');
+          setIsSaving(false);
+          return;
+        }
+      }
 
       if (error) throw error;
       
