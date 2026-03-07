@@ -34,7 +34,6 @@ const demoProfileUser = {
   wing: 'A',
   maintenanceStatus: 'pending' as const,
   outstandingDues: 5000,
-  emergencyContact: '+91 98765 11111',
 };
 
 export default function Profile() {
