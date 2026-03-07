@@ -54,7 +54,6 @@ export const signupFormSchema = z.object({
 export const profileUpdateSchema = z.object({
   phone: phoneSchema,
   email: emailSchema.optional(),
-  emergencyContact: phoneSchema,
 });
 
 // Complaint form schema

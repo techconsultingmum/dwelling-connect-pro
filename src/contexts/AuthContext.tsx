@@ -16,7 +16,6 @@ export interface UserProfile {
   avatarUrl?: string;
   maintenanceStatus?: 'paid' | 'pending' | 'overdue';
   outstandingDues?: number;
-  emergencyContact?: string;
 }
 
 export interface AuthState {
