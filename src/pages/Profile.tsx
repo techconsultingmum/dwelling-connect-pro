@@ -23,8 +23,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { phoneSchema } from '@/lib/validation';
 
-// Demo user data
 const demoProfileUser = {
   memberId: 'DEMO001',
   name: 'Demo User',
@@ -43,37 +43,44 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [formErrors, setFormErrors] = useState<{ phone?: string }>({});
   const [formData, setFormData] = useState({
     phone: '',
-    email: '',
   });
 
-  // Use demo user in demo mode
   const currentUser = isDemoMode ? demoProfileUser : user;
   const isManager = isDemoMode ? true : role === 'manager';
 
-  // Initialize form data when user changes
   useEffect(() => {
     if (currentUser) {
       setFormData({
         phone: currentUser.phone || '',
-        email: currentUser.email || '',
       });
     }
   }, [currentUser]);
 
-  // Reset form data when canceling
   const handleCancelEdit = useCallback(() => {
     if (currentUser) {
       setFormData({
         phone: currentUser.phone || '',
-        email: currentUser.email || '',
       });
     }
     setIsEditing(false);
+    setFormErrors({});
   }, [currentUser]);
 
   const handleSave = async () => {
+    setFormErrors({});
+    
+    // Validate phone if provided
+    if (formData.phone) {
+      const phoneResult = phoneSchema.safeParse(formData.phone);
+      if (!phoneResult.success) {
+        setFormErrors({ phone: 'Please enter a valid Indian phone number' });
+        return;
+      }
+    }
+
     if (isDemoMode) {
       toast.success('Profile updated (demo mode)');
       setIsEditing(false);
@@ -81,7 +88,7 @@ export default function Profile() {
     }
     
     setIsSaving(true);
-    const result = await updateProfile(formData);
+    const result = await updateProfile({ phone: formData.phone });
     setIsSaving(false);
     
     if (result.success) {
@@ -97,7 +104,7 @@ export default function Profile() {
     try {
       await logout();
       navigate('/login');
-    } catch (error) {
+    } catch {
       toast.error('Failed to log out');
     } finally {
       setIsLoggingOut(false);
@@ -169,7 +176,7 @@ export default function Profile() {
                     {isManager ? 'Manager' : 'Member'}
                   </Badge>
                 </div>
-                <p className="text-muted-foreground">{currentUser?.memberId}</p>
+                <p className="text-muted-foreground">{currentUser?.memberId || 'No Member ID'}</p>
               </div>
               <div className="flex gap-2">
                 {isEditing && (
@@ -236,10 +243,9 @@ export default function Profile() {
                   <Input
                     id="email"
                     type="email"
-                    value={isEditing ? formData.email : currentUser?.email || ''}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    disabled={!isEditing}
-                    className={cn('pl-10', !isEditing && 'bg-muted')}
+                    value={currentUser?.email || ''}
+                    disabled
+                    className="pl-10 bg-muted"
                   />
                 </div>
               </div>
@@ -250,11 +256,19 @@ export default function Profile() {
                   <Input
                     id="phone"
                     value={isEditing ? formData.phone : currentUser?.phone || ''}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) => {
+                      setFormData({ ...formData, phone: e.target.value });
+                      setFormErrors({});
+                    }}
                     disabled={!isEditing}
-                    className={cn('pl-10', !isEditing && 'bg-muted')}
+                    className={cn('pl-10', !isEditing && 'bg-muted', formErrors.phone && 'border-destructive')}
+                    placeholder="+91 98765 43210"
+                    maxLength={15}
                   />
                 </div>
+                {formErrors.phone && (
+                  <p className="text-sm text-destructive">{formErrors.phone}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="member-id">Member ID</Label>
@@ -281,11 +295,11 @@ export default function Profile() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-4 rounded-lg bg-muted/50 space-y-1">
                   <p className="text-sm text-muted-foreground">Flat Number</p>
-                  <p className="text-xl font-bold">{currentUser?.flatNo}</p>
+                  <p className="text-xl font-bold">{currentUser?.flatNo || 'N/A'}</p>
                 </div>
                 <div className="p-4 rounded-lg bg-muted/50 space-y-1">
                   <p className="text-sm text-muted-foreground">Wing</p>
-                  <p className="text-xl font-bold">{currentUser?.wing}</p>
+                  <p className="text-xl font-bold">{currentUser?.wing || 'N/A'}</p>
                 </div>
               </div>
               
@@ -304,7 +318,7 @@ export default function Profile() {
                       currentUser?.maintenanceStatus === 'paid' && 'bg-success hover:bg-success/90'
                     )}
                   >
-                    {currentUser?.maintenanceStatus}
+                    {currentUser?.maintenanceStatus || 'N/A'}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">

@@ -10,7 +10,6 @@ export interface User {
   role: UserRole;
   maintenanceStatus: 'paid' | 'pending' | 'overdue';
   outstandingDues: number;
-  emergencyContact?: string;
   avatar?: string;
 }
 
