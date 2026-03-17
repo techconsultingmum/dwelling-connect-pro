@@ -18,8 +18,8 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRealtimeChat, useChatPartners, Message } from '@/hooks/useRealtimeChat';
+import { sanitizeText } from '@/lib/validation';
 
-// Demo chat partners
 const demoChatPartners = [
   { userId: 'demo-001', name: 'Rajesh Kumar', flatNo: 'A-101', unreadCount: 2 },
   { userId: 'demo-002', name: 'Priya Sharma', flatNo: 'B-205', unreadCount: 0 },
@@ -27,7 +27,6 @@ const demoChatPartners = [
   { userId: 'demo-004', name: 'Sneha Reddy', flatNo: 'C-101', unreadCount: 0 },
 ];
 
-// Demo messages
 const demoMessages: Record<string, Message[]> = {
   'demo-001': [
     { id: '1', sender_id: 'demo-001', receiver_id: 'demo-me', message: 'Hi, when is the next society meeting?', is_read: true, created_at: new Date(Date.now() - 3600000).toISOString() },
@@ -55,10 +54,8 @@ export default function Chat() {
   const isManager = isDemoMode ? true : role === 'manager';
   const { partners: realPartners, isLoading: partnersLoading } = useChatPartners();
   
-  // Use demo partners in demo mode
   const partners = isDemoMode ? demoChatPartners : realPartners;
   
-  // For regular users, find the manager to chat with
   const managerPartner = useMemo(() => {
     if (!isManager && partners.length > 0) {
       return partners[0];
@@ -66,42 +63,39 @@ export default function Chat() {
     return null;
   }, [isManager, partners]);
 
-  // Auto-select first partner for non-managers or use selected
   const chatPartnerId = isManager ? selectedChat : (selectedChat || managerPartner?.userId || null);
   
   const { messages: realMessages, isLoading: messagesLoading, sendMessage: realSendMessage, markAsRead } = useRealtimeChat(isDemoMode ? null : chatPartnerId);
   
-  // Use demo messages in demo mode
   const messages = isDemoMode ? (chatPartnerId ? demoMsgs[chatPartnerId] || [] : []) : realMessages;
   const currentUserId = isDemoMode ? 'demo-me' : user?.userId;
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, scrollToBottom]);
 
-  // Mark messages as read when viewing
   useEffect(() => {
-    if (chatPartnerId) {
+    if (chatPartnerId && !isDemoMode) {
       markAsRead();
     }
-  }, [chatPartnerId, markAsRead, messages]);
+  }, [chatPartnerId, markAsRead, isDemoMode]);
 
-  const handleSend = async () => {
-    if (!newMessage.trim() || !chatPartnerId) return;
+  const handleSend = useCallback(async () => {
+    const trimmed = newMessage.trim();
+    if (!trimmed || !chatPartnerId || isSending) return;
 
     setIsSending(true);
     
     if (isDemoMode) {
-      // Add demo message locally
       const newMsg: Message = {
         id: Date.now().toString(),
         sender_id: currentUserId!,
         receiver_id: chatPartnerId,
-        message: newMessage.trim(),
+        message: sanitizeText(trimmed),
         is_read: false,
         created_at: new Date().toISOString(),
       };
@@ -114,36 +108,31 @@ export default function Chat() {
       return;
     }
 
-    const success = await realSendMessage(newMessage);
+    const success = await realSendMessage(trimmed);
     if (success) {
       setNewMessage('');
     }
     setIsSending(false);
-  };
+  }, [newMessage, chatPartnerId, isSending, isDemoMode, currentUserId, realSendMessage]);
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [newMessage, chatPartnerId, isDemoMode]);
+  }, [handleSend]);
 
-  // Get partner name for display
   const getPartnerName = (partnerId: string) => {
-    const partner = partners.find(p => p.userId === partnerId);
-    return partner?.name || 'Unknown';
+    return partners.find(p => p.userId === partnerId)?.name || 'Unknown';
   };
 
   const getPartnerFlat = (partnerId: string) => {
-    const partner = partners.find(p => p.userId === partnerId);
-    return partner?.flatNo || '';
+    return partners.find(p => p.userId === partnerId)?.flatNo || '';
   };
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
             <MessageSquare className="w-8 h-8 text-primary" />
@@ -167,7 +156,7 @@ export default function Chat() {
             <CardContent className="p-0">
               <ScrollArea className="h-[calc(100vh-340px)]">
                 <div className="p-2 space-y-1">
-                  {partnersLoading ? (
+                  {partnersLoading && !isDemoMode ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <div key={i} className="flex items-center gap-3 p-3">
                         <Skeleton className="w-10 h-10 rounded-full" />
@@ -237,7 +226,6 @@ export default function Chat() {
 
           {/* Chat Window */}
           <Card className="lg:col-span-3 flex flex-col">
-            {/* Chat Header */}
             <CardHeader className="pb-3 border-b">
               {chatPartnerId ? (
                 <div className="flex items-center gap-3">
@@ -261,7 +249,6 @@ export default function Chat() {
               )}
             </CardHeader>
 
-            {/* Messages */}
             <CardContent className="flex-1 p-0 overflow-hidden">
               <ScrollArea className="h-[calc(100vh-420px)] p-4">
                 {chatPartnerId ? (
@@ -277,16 +264,15 @@ export default function Chat() {
                         <p className="text-sm">Start a conversation!</p>
                       </div>
                     ) : (
-                      messages.map((msg, index) => {
+                      messages.map((msg) => {
                         const isOwn = msg.sender_id === currentUserId;
                         return (
                           <div
                             key={msg.id}
                             className={cn(
-                              'flex animate-scale-in',
+                              'flex',
                               isOwn ? 'justify-end' : 'justify-start'
                             )}
-                            style={{ animationDelay: `${index * 30}ms` }}
                           >
                             <div className={cn(
                               'max-w-[70%] px-4 py-2 rounded-2xl',
@@ -294,7 +280,7 @@ export default function Chat() {
                                 ? 'bg-primary text-primary-foreground rounded-br-md' 
                                 : 'bg-muted rounded-bl-md'
                             )}>
-                              <p>{msg.message}</p>
+                              <p className="break-words">{msg.message}</p>
                               <p className={cn(
                                 'text-xs mt-1 opacity-70',
                                 isOwn ? 'text-right' : 'text-left'
@@ -323,7 +309,6 @@ export default function Chat() {
               </ScrollArea>
             </CardContent>
 
-            {/* Message Input */}
             {chatPartnerId && (
               <div className="p-4 border-t">
                 <div className="flex gap-3">
@@ -341,6 +326,7 @@ export default function Chat() {
                     size="icon"
                     onClick={handleSend}
                     disabled={!newMessage.trim() || isSending}
+                    aria-label="Send message"
                   >
                     {isSending ? (
                       <Loader2 className="w-5 h-5 animate-spin" />

@@ -16,14 +16,13 @@ export default function ResetPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [isValidFlow, setIsValidFlow] = useState(true);
 
   useEffect(() => {
-    // Check if we have an access token from the URL (password reset flow)
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
     const accessToken = hashParams.get('access_token');
     const type = hashParams.get('type');
     
-    // Also check query params for some Supabase redirect formats
     const searchParams = new URLSearchParams(window.location.search);
     const tokenFromQuery = searchParams.get('token');
     const typeFromQuery = searchParams.get('type');
@@ -32,17 +31,17 @@ export default function ResetPassword() {
     const isRecovery = type === 'recovery' || typeFromQuery === 'recovery';
     
     if (!isRecovery && !hasValidToken) {
-      // Not a password reset flow, redirect to login
-      navigate('/login');
+      setIsValidFlow(false);
+      setTimeout(() => navigate('/login'), 2000);
     }
   }, [navigate]);
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading) return;
     setIsLoading(true);
     setError('');
 
-    // Validate password with schema
     const validation = passwordSchema.safeParse(password);
     if (!validation.success) {
       setError(validation.error.errors[0]?.message || 'Invalid password');
@@ -63,16 +62,26 @@ export default function ResetPassword() {
         setError(error.message);
       } else {
         setSuccess(true);
-        setTimeout(() => {
-          navigate('/login');
-        }, 2000);
+        setTimeout(() => navigate('/login'), 2000);
       }
-    } catch (err) {
+    } catch {
       setError('An error occurred. Please try again.');
     }
 
     setIsLoading(false);
   };
+
+  if (!isValidFlow) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center">
+            <p className="text-muted-foreground">Invalid reset link. Redirecting to login...</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (success) {
     return (
@@ -106,7 +115,7 @@ export default function ResetPassword() {
           <form onSubmit={handleResetPassword} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="password">New Password</Label>
-                  <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
+              <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <Input
@@ -125,6 +134,7 @@ export default function ResetPassword() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
@@ -143,12 +153,13 @@ export default function ResetPassword() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="pl-10"
                   required
+                  autoComplete="new-password"
                 />
               </div>
             </div>
 
             {error && (
-              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm">
+              <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-sm" role="alert">
                 {error}
               </div>
             )}
