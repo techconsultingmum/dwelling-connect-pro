@@ -75,6 +75,11 @@ export default function Profile() {
   const handleSave = async () => {
     setFormErrors({});
     
+    if (!formData.name?.trim()) {
+      setFormErrors({ name: 'Name is required' });
+      return;
+    }
+
     // Validate phone if provided
     if (formData.phone) {
       const phoneResult = phoneSchema.safeParse(formData.phone);
@@ -91,7 +96,7 @@ export default function Profile() {
     }
     
     setIsSaving(true);
-    const result = await updateProfile({ phone: formData.phone });
+    const result = await updateProfile({ name: formData.name.trim(), phone: formData.phone });
     setIsSaving(false);
     
     if (result.success) {
