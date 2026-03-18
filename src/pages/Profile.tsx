@@ -45,6 +45,7 @@ export default function Profile() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [formErrors, setFormErrors] = useState<{ phone?: string }>({});
   const [formData, setFormData] = useState({
+    name: '',
     phone: '',
   });
 
