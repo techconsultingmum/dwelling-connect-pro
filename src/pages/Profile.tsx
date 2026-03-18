@@ -43,7 +43,7 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [formErrors, setFormErrors] = useState<{ phone?: string }>({});
+  const [formErrors, setFormErrors] = useState<{ name?: string; phone?: string }>({});
   const [formData, setFormData] = useState({
     name: '',
     phone: '',
