@@ -55,6 +55,7 @@ export default function Profile() {
   useEffect(() => {
     if (currentUser) {
       setFormData({
+        name: currentUser.name || '',
         phone: currentUser.phone || '',
       });
     }
