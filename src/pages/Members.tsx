@@ -106,10 +106,6 @@ export default function Members() {
               )}
               <span className="hidden sm:inline ml-2">Sync from Sheet</span>
             </Button>
-            <Button variant="gradient">
-              <UserPlus className="w-4 h-4" />
-              <span className="hidden sm:inline ml-2">Add Member</span>
-            </Button>
           </div>
         </div>
 

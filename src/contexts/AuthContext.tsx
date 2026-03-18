@@ -306,15 +306,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
+      const dbUpdates: Record<string, any> = {};
+      if (updates.name !== undefined) dbUpdates.name = updates.name;
+      if (updates.phone !== undefined) dbUpdates.phone = updates.phone;
+      if (updates.flatNo !== undefined) dbUpdates.flat_no = updates.flatNo;
+      if (updates.wing !== undefined) dbUpdates.wing = updates.wing;
+      if (updates.avatarUrl !== undefined) dbUpdates.avatar_url = updates.avatarUrl;
+
       const { error } = await supabase
         .from('profiles')
-        .update({
-          name: updates.name,
-          phone: updates.phone,
-          flat_no: updates.flatNo,
-          wing: updates.wing,
-          avatar_url: updates.avatarUrl,
-        })
+        .update(dbUpdates)
         .eq('user_id', authState.user.userId);
 
       if (error) {
