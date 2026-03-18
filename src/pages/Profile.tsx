@@ -43,8 +43,9 @@ export default function Profile() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [formErrors, setFormErrors] = useState<{ phone?: string }>({});
+  const [formErrors, setFormErrors] = useState<{ name?: string; phone?: string }>({});
   const [formData, setFormData] = useState({
+    name: '',
     phone: '',
   });
 
@@ -54,6 +55,7 @@ export default function Profile() {
   useEffect(() => {
     if (currentUser) {
       setFormData({
+        name: currentUser.name || '',
         phone: currentUser.phone || '',
       });
     }
@@ -62,6 +64,7 @@ export default function Profile() {
   const handleCancelEdit = useCallback(() => {
     if (currentUser) {
       setFormData({
+        name: currentUser.name || '',
         phone: currentUser.phone || '',
       });
     }
@@ -72,6 +75,11 @@ export default function Profile() {
   const handleSave = async () => {
     setFormErrors({});
     
+    if (!formData.name?.trim()) {
+      setFormErrors({ name: 'Name is required' });
+      return;
+    }
+
     // Validate phone if provided
     if (formData.phone) {
       const phoneResult = phoneSchema.safeParse(formData.phone);
@@ -88,7 +96,7 @@ export default function Profile() {
     }
     
     setIsSaving(true);
-    const result = await updateProfile({ phone: formData.phone });
+    const result = await updateProfile({ name: formData.name.trim(), phone: formData.phone });
     setIsSaving(false);
     
     if (result.success) {
@@ -231,10 +239,18 @@ export default function Profile() {
                 <Label htmlFor="name">Full Name</Label>
                 <Input
                   id="name"
-                  value={currentUser?.name || ''}
-                  disabled
-                  className="bg-muted"
+                  value={isEditing ? formData.name : currentUser?.name || ''}
+                  onChange={(e) => {
+                    setFormData({ ...formData, name: e.target.value });
+                    setFormErrors(prev => ({ ...prev, name: undefined }));
+                  }}
+                  disabled={!isEditing}
+                  className={cn(!isEditing && 'bg-muted', formErrors.name && 'border-destructive')}
+                  maxLength={100}
                 />
+                {formErrors.name && (
+                  <p className="text-sm text-destructive">{formErrors.name}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
