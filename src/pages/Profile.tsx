@@ -239,10 +239,18 @@ export default function Profile() {
                 <Label htmlFor="name">Full Name</Label>
                 <Input
                   id="name"
-                  value={currentUser?.name || ''}
-                  disabled
-                  className="bg-muted"
+                  value={isEditing ? formData.name : currentUser?.name || ''}
+                  onChange={(e) => {
+                    setFormData({ ...formData, name: e.target.value });
+                    setFormErrors(prev => ({ ...prev, name: undefined }));
+                  }}
+                  disabled={!isEditing}
+                  className={cn(!isEditing && 'bg-muted', formErrors.name && 'border-destructive')}
+                  maxLength={100}
                 />
+                {formErrors.name && (
+                  <p className="text-sm text-destructive">{formErrors.name}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="email">Email Address</Label>
