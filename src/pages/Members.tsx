@@ -30,7 +30,6 @@ import {
   RefreshCw, 
   Phone,
   Mail,
-  Mail,
   Home,
   Loader2,
 } from 'lucide-react';
