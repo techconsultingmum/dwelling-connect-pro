@@ -64,6 +64,7 @@ export default function Profile() {
   const handleCancelEdit = useCallback(() => {
     if (currentUser) {
       setFormData({
+        name: currentUser.name || '',
         phone: currentUser.phone || '',
       });
     }
