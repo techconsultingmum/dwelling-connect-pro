@@ -293,7 +293,11 @@ export default function Payments() {
                           {!isManager && (
                             <TableCell className="text-right">
                               {bill.status !== 'paid' && (
-                                <Button size="sm" variant="gradient">
+                                <Button 
+                                  size="sm" 
+                                  variant="gradient"
+                                  onClick={() => toast.info('Online payments coming soon.')}
+                                >
                                   Pay Now
                                 </Button>
                               )}
