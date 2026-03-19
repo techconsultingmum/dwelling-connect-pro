@@ -322,30 +322,14 @@ export default function Profile() {
               <div className="p-4 rounded-lg border space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Maintenance Status</span>
-                  <Badge 
-                    variant={
-                      currentUser?.maintenanceStatus === 'paid' 
-                        ? 'default'
-                        : currentUser?.maintenanceStatus === 'overdue'
-                        ? 'destructive'
-                        : 'secondary'
-                    }
-                    className={cn(
-                      currentUser?.maintenanceStatus === 'paid' && 'bg-success hover:bg-success/90'
-                    )}
-                  >
-                    {currentUser?.maintenanceStatus || 'N/A'}
+                  <Badge variant="secondary">
+                    {(currentUser as any)?.maintenanceStatus || 'N/A'}
                   </Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Outstanding Dues</span>
-                  <span className={cn(
-                    'font-bold',
-                    currentUser?.outstandingDues && currentUser.outstandingDues > 0 
-                      ? 'text-destructive' 
-                      : 'text-success'
-                  )}>
-                    ₹{currentUser?.outstandingDues?.toLocaleString() || 0}
+                  <span className="font-bold text-muted-foreground">
+                    View in Payments
                   </span>
                 </div>
               </div>

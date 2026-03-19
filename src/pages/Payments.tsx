@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 import { useState } from 'react';
 import { useDemo } from '@/contexts/DemoContext';
 import { useData } from '@/contexts/DataContext';
@@ -109,7 +110,11 @@ export default function Payments() {
               <RefreshCw className={cn("w-4 h-4", (isLoading || isRefreshing) && "animate-spin")} />
               Sync Data
             </Button>
-            <Button variant="outline" className="gap-2">
+            <Button 
+              variant="outline" 
+              className="gap-2"
+              onClick={() => toast.info('Statement download will be available soon.')}
+            >
               <Download className="w-4 h-4" />
               Download Statement
             </Button>
@@ -288,12 +293,20 @@ export default function Payments() {
                           {!isManager && (
                             <TableCell className="text-right">
                               {bill.status !== 'paid' && (
-                                <Button size="sm" variant="gradient">
+                                <Button 
+                                  size="sm" 
+                                  variant="gradient"
+                                  onClick={() => toast.info('Online payments coming soon.')}
+                                >
                                   Pay Now
                                 </Button>
                               )}
                               {bill.status === 'paid' && (
-                                <Button size="sm" variant="outline">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => toast.info('Receipt download coming soon.')}
+                                >
                                   Receipt
                                 </Button>
                               )}
