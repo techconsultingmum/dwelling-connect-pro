@@ -302,7 +302,11 @@ export default function Payments() {
                                 </Button>
                               )}
                               {bill.status === 'paid' && (
-                                <Button size="sm" variant="outline">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => toast.info('Receipt download coming soon.')}
+                                >
                                   Receipt
                                 </Button>
                               )}

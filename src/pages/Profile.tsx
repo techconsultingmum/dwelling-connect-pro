@@ -328,13 +328,8 @@ export default function Profile() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-muted-foreground">Outstanding Dues</span>
-                  <span className={cn(
-                    'font-bold',
-                    currentUser?.outstandingDues && currentUser.outstandingDues > 0 
-                      ? 'text-destructive' 
-                      : 'text-success'
-                  )}>
-                    ₹{currentUser?.outstandingDues?.toLocaleString() || 0}
+                  <span className="font-bold text-muted-foreground">
+                    View in Payments
                   </span>
                 </div>
               </div>

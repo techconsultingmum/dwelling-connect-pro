@@ -286,14 +286,13 @@ export default function Members() {
                   </div>
                 </div>
 
-                <div className="flex gap-3">
-                  <Button variant="outline" className="flex-1">
-                    Edit Details
-                  </Button>
-                  <Button variant="gradient" className="flex-1">
-                    Send Message
-                  </Button>
-                </div>
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => setSelectedMember(null)}
+                >
+                  Close
+                </Button>
               </div>
             )}
           </DialogContent>
