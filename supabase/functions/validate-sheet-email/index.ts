@@ -235,7 +235,7 @@ serve(async (req) => {
     console.error('Error validating email');
     return new Response(
       JSON.stringify({ valid: false, error: 'An error occurred. Please try again.' }),
-      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

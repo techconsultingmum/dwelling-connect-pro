@@ -180,7 +180,7 @@ serve(async (req) => {
     console.error('Error:', errorMessage);
     return new Response(
       JSON.stringify({ error: 'An error occurred while processing your request' }),
-      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

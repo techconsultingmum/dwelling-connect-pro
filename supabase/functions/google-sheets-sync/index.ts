@@ -216,7 +216,7 @@ serve(async (req) => {
     console.error('Error processing request');
     return new Response(
       JSON.stringify({ success: false, error: 'An error occurred while processing the request' }),
-      { status: 500, headers: { ...getCorsHeaders(req), 'Content-Type': 'application/json' } }
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
