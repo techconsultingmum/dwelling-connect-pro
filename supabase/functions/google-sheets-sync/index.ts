@@ -143,7 +143,7 @@ function parseMaintenanceStatus(status: string): 'paid' | 'pending' | 'overdue' 
 }
 
 serve(async (req) => {
-  const corsHeaders = getCorsHeaders(req);
+  
   
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
