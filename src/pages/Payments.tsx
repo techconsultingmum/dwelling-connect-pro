@@ -109,7 +109,11 @@ export default function Payments() {
               <RefreshCw className={cn("w-4 h-4", (isLoading || isRefreshing) && "animate-spin")} />
               Sync Data
             </Button>
-            <Button variant="outline" className="gap-2">
+            <Button 
+              variant="outline" 
+              className="gap-2"
+              onClick={() => toast.info('Statement download will be available soon.')}
+            >
               <Download className="w-4 h-4" />
               Download Statement
             </Button>
