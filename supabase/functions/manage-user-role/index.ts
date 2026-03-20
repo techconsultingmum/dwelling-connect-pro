@@ -122,8 +122,8 @@ serve(async (req) => {
         .from('user_roles')
         .insert({ user_id: targetUserId, role: role });
 
-      if (upsertError) {
-        throw upsertError;
+      if (insertError) {
+        throw insertError;
       }
 
       return new Response(
