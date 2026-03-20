@@ -107,15 +107,20 @@ serve(async (req) => {
         );
       }
 
-      // Update or insert role
-      const { error: upsertError } = await supabaseAdmin
+      // Delete existing role(s) for the user, then insert the new one
+      // This avoids issues with the composite unique constraint (user_id, role)
+      const { error: deleteError } = await supabaseAdmin
         .from('user_roles')
-        .upsert({ 
-          user_id: targetUserId, 
-          role: role 
-        }, { 
-          onConflict: 'user_id' 
-        });
+        .delete()
+        .eq('user_id', targetUserId);
+
+      if (deleteError) {
+        throw deleteError;
+      }
+
+      const { error: insertError } = await supabaseAdmin
+        .from('user_roles')
+        .insert({ user_id: targetUserId, role: role });
 
       if (upsertError) {
         throw upsertError;
