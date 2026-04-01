@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Dynamic CORS based on allowed origins
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
@@ -33,105 +32,114 @@ interface MaintenanceBill {
   year: number;
 }
 
+function parseCSVLine(line: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (const char of line) {
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      values.push(current.trim().replace(/^"|"$/g, ''));
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  values.push(current.trim().replace(/^"|"$/g, ''));
+  return values;
+}
+
+function normalizeHeader(h: string): string {
+  return h.trim().toLowerCase().replace(/\s+/g, '').replace(/['"]/g, '');
+}
+
 function parseCSV(csvText: string): { members: Member[]; bills: MaintenanceBill[] } {
   const lines = csvText.split('\n');
   if (lines.length < 2) return { members: [], bills: [] };
-  
-  // Parse headers - normalize them
-  const headers = lines[0].split(',').map(h => 
-    h.trim().toLowerCase().replace(/\s+/g, '').replace(/['"]/g, '')
-  );
-  
+
+  const rawHeaders = parseCSVLine(lines[0]);
+  const headers = rawHeaders.map(normalizeHeader);
+
   console.log('Parsed headers:', headers);
-  
+
   const members: Member[] = [];
   const bills: MaintenanceBill[] = [];
   const currentDate = new Date();
   const currentMonth = currentDate.toLocaleString('default', { month: 'long' });
   const currentYear = currentDate.getFullYear();
-  
+
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
-    
-    // Handle CSV with potential quoted values
-    const values: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    
-    for (const char of line) {
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
-        values.push(current.trim().replace(/^"|"$/g, ''));
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    values.push(current.trim().replace(/^"|"$/g, ''));
-    
-    const memberData: Record<string, string> = {};
+
+    const values = parseCSVLine(line);
+    const row: Record<string, string> = {};
     headers.forEach((header, idx) => {
-      memberData[header] = values[idx] || '';
+      row[header] = values[idx] || '';
     });
-    
-    // Map to Member interface with actual Google Sheet column names
-    const memberId = `USR${String(i).padStart(3, '0')}`;
-    const maintenanceStatus = parseMaintenanceStatus(memberData.maintenancestatus || memberData.status || 'pending');
-    const outstandingDues = parseFloat(memberData.outstandingdues || memberData.dues || memberData.amount || '0') || 0;
-    const flatNo = memberData['flatno.'] || memberData.flatno || memberData.flat || '';
-    
+
+    // Map columns flexibly to handle various header naming conventions
+    const memberId = row['memberid'] || row['member_id'] || row['sr.no.'] || `USR${String(i).padStart(3, '0')}`;
+    const name = row['membername'] || row['name(primarymember)'] || row['name'] || '';
+    const email = row['emailaddress'] || row['email'] || '';
+    const phone = row['contactnumber'] || row['contactnumber(primarymember)'] || row['phone'] || '';
+    const flatNo = row['flatno.'] || row['flatno'] || row['flat'] || '';
+    const wing = row['wing'] || '';
+    const sheetRole = row['role'] || '';
+    const maintenanceStatusRaw = row['maintenancestatus'] || row['status'] || '';
+    const outstandingDuesRaw = row['outstandingdues'] || row['dues'] || row['amount'] || '0';
+
+    if (!name || name === 'Unknown') continue;
+
+    const maintenanceStatus = parseMaintenanceStatus(maintenanceStatusRaw);
+    const outstandingDues = parseFloat(outstandingDuesRaw) || 0;
+
     const member: Member = {
       memberId,
-      name: memberData['name(primarymember)'] || memberData.name || 'Unknown',
-      email: memberData.emailaddress || memberData.email || '',
-      phone: memberData['contactnumber(primarymember)'] || memberData.phone || '',
+      name,
+      email,
+      phone,
       flatNo,
-      wing: memberData.wing || '',
-      role: 'user',
+      wing,
+      role: sheetRole.toLowerCase().includes('manager') || sheetRole.toLowerCase().includes('admin') ? 'manager' : 'user',
       maintenanceStatus,
       outstandingDues,
     };
-    
-    // Skip rows without a name
-    if (member.name && member.name !== 'Unknown') {
-      members.push(member);
-      
-      // Create maintenance bill for this member
-      if (outstandingDues > 0 || maintenanceStatus !== 'paid') {
-        const bill: MaintenanceBill = {
-          id: `BILL-${memberId}-${currentYear}-${i}`,
-          userId: memberId,
-          flatNo,
-          amount: outstandingDues > 0 ? outstandingDues : 5000, // Default maintenance amount
-          dueDate: new Date(currentYear, currentDate.getMonth(), 15).toISOString().split('T')[0],
-          status: maintenanceStatus,
-          month: currentMonth,
-          year: currentYear,
-        };
-        bills.push(bill);
-      }
-      
-      // Add previous month bill if marked as paid
-      if (maintenanceStatus === 'paid') {
-        const prevMonth = new Date(currentYear, currentDate.getMonth() - 1, 1);
-        const bill: MaintenanceBill = {
-          id: `BILL-${memberId}-${prevMonth.getFullYear()}-${prevMonth.getMonth()}-${i}`,
-          userId: memberId,
-          flatNo,
-          amount: 5000,
-          dueDate: new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 15).toISOString().split('T')[0],
-          status: 'paid',
-          paidDate: new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 10).toISOString().split('T')[0],
-          month: prevMonth.toLocaleString('default', { month: 'long' }),
-          year: prevMonth.getFullYear(),
-        };
-        bills.push(bill);
-      }
+
+    members.push(member);
+
+    // Create maintenance bill for members with outstanding dues
+    if (outstandingDues > 0 || maintenanceStatus !== 'paid') {
+      bills.push({
+        id: `BILL-${memberId}-${currentYear}-${i}`,
+        userId: memberId,
+        flatNo,
+        amount: outstandingDues > 0 ? outstandingDues : 5000,
+        dueDate: new Date(currentYear, currentDate.getMonth(), 15).toISOString().split('T')[0],
+        status: maintenanceStatus,
+        month: currentMonth,
+        year: currentYear,
+      });
+    }
+
+    if (maintenanceStatus === 'paid') {
+      const prevMonth = new Date(currentYear, currentDate.getMonth() - 1, 1);
+      bills.push({
+        id: `BILL-${memberId}-${prevMonth.getFullYear()}-${prevMonth.getMonth()}-${i}`,
+        userId: memberId,
+        flatNo,
+        amount: 5000,
+        dueDate: new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 15).toISOString().split('T')[0],
+        status: 'paid',
+        paidDate: new Date(prevMonth.getFullYear(), prevMonth.getMonth(), 10).toISOString().split('T')[0],
+        month: prevMonth.toLocaleString('default', { month: 'long' }),
+        year: prevMonth.getFullYear(),
+      });
     }
   }
-  
+
   return { members, bills };
 }
 
@@ -143,9 +151,6 @@ function parseMaintenanceStatus(status: string): 'paid' | 'pending' | 'overdue' 
 }
 
 serve(async (req) => {
-  
-  
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -154,7 +159,6 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
 
-    // Check for authorization header
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
@@ -163,7 +167,6 @@ serve(async (req) => {
       );
     }
 
-    // Verify user authentication
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } }
     });
@@ -179,18 +182,32 @@ serve(async (req) => {
     const { action } = await req.json().catch(() => ({ action: 'read' }));
 
     if (action === 'read') {
-      // Fetch CSV from Google Sheets
-      const response = await fetch(CSV_URL);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch data');
+      if (!CSV_URL) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'CSV URL not configured' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
-      
+
+      const response = await fetch(CSV_URL);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch CSV: ${response.status}`);
+      }
+
       const csvText = await response.text();
+      
+      // Validate we got CSV, not HTML
+      if (csvText.trim().startsWith('<!') || csvText.trim().startsWith('<html')) {
+        console.error('Received HTML instead of CSV. Check GOOGLE_SHEET_CSV_URL.');
+        return new Response(
+          JSON.stringify({ success: false, error: 'Invalid CSV source. Please check the sheet URL configuration.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       const { members, bills } = parseCSV(csvText);
-      
       console.log(`Parsed ${members.length} members and ${bills.length} bills from CSV`);
-      
+
       return new Response(
         JSON.stringify({ success: true, members, bills }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -199,10 +216,7 @@ serve(async (req) => {
 
     if (action === 'write') {
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Write operations require additional configuration'
-        }),
+        JSON.stringify({ success: false, error: 'Write operations require additional configuration' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -211,9 +225,8 @@ serve(async (req) => {
       JSON.stringify({ success: false, error: 'Invalid action' }),
       { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error: unknown) {
-    console.error('Error processing request');
+    console.error('Error processing request:', error);
     return new Response(
       JSON.stringify({ success: false, error: 'An error occurred while processing the request' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
