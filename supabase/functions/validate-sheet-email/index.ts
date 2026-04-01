@@ -1,6 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-// Dynamic CORS based on allowed origins
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
@@ -18,146 +17,149 @@ interface SheetMember {
   maintenanceStatus: 'paid' | 'pending' | 'overdue';
 }
 
+function parseCSVLine(line: string): string[] {
+  const values: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (const char of line) {
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      values.push(current.trim().replace(/^"|"$/g, ''));
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  values.push(current.trim().replace(/^"|"$/g, ''));
+  return values;
+}
+
+function normalizeHeader(h: string): string {
+  return h.trim().toLowerCase().replace(/\s+/g, '').replace(/['"]/g, '');
+}
+
 async function fetchSheetEmails(): Promise<SheetMember[]> {
   const response = await fetch(CSV_URL);
   if (!response.ok) {
     throw new Error('Unable to fetch member data');
   }
-  
+
   const csvText = await response.text();
+  
+  // Validate we got CSV, not HTML
+  if (csvText.trim().startsWith('<!') || csvText.trim().startsWith('<html')) {
+    throw new Error('Received HTML instead of CSV data');
+  }
+
   const lines = csvText.split('\n');
   if (lines.length < 2) return [];
-  
-  const headers = lines[0].split(',').map(h => 
-    h.trim().toLowerCase().replace(/\s+/g, '').replace(/['"]/g, '')
-  );
-  
+
+  const rawHeaders = parseCSVLine(lines[0]);
+  const headers = rawHeaders.map(normalizeHeader);
+
   const members: SheetMember[] = [];
-  
+
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
-    
-    const values: string[] = [];
-    let current = '';
-    let inQuotes = false;
-    
-    for (const char of line) {
-      if (char === '"') {
-        inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
-        values.push(current.trim().replace(/^"|"$/g, ''));
-        current = '';
-      } else {
-        current += char;
-      }
-    }
-    values.push(current.trim().replace(/^"|"$/g, ''));
-    
-    const memberData: Record<string, string> = {};
+
+    const values = parseCSVLine(line);
+    const row: Record<string, string> = {};
     headers.forEach((header, idx) => {
-      memberData[header] = values[idx] || '';
+      row[header] = values[idx] || '';
     });
-    
-    const email = memberData.emailaddress || memberData.email || '';
-    const name = memberData['name(primarymember)'] || memberData.name || '';
-    const memberId = memberData.memberid || memberData['member id'] || memberData['sr.no.'] || `M${i.toString().padStart(3, '0')}`;
-    
-    // Parse maintenance status
-    const statusRaw = (memberData.maintenancestatus || memberData.status || '').toLowerCase().trim();
+
+    const email = row['emailaddress'] || row['email'] || '';
+    const name = row['membername'] || row['name(primarymember)'] || row['name'] || '';
+    const memberId = row['memberid'] || row['member_id'] || row['sr.no.'] || `M${i.toString().padStart(3, '0')}`;
+    const phone = row['contactnumber'] || row['contactnumber(primarymember)'] || row['phone'] || '';
+    const flatNo = row['flatno.'] || row['flatno'] || '';
+    const wing = row['wing'] || '';
+
+    const statusRaw = (row['maintenancestatus'] || row['status'] || '').toLowerCase().trim();
     let maintenanceStatus: 'paid' | 'pending' | 'overdue' = 'pending';
     if (statusRaw.includes('paid') || statusRaw.includes('clear')) {
       maintenanceStatus = 'paid';
     } else if (statusRaw.includes('overdue') || statusRaw.includes('due')) {
       maintenanceStatus = 'overdue';
     }
-    
+
     if (email) {
       members.push({
         memberId,
         email: email.toLowerCase().trim(),
         name,
-        phone: memberData['contactnumber(primarymember)'] || memberData.phone || '',
-        flatNo: memberData['flatno.'] || memberData.flatno || '',
-        wing: memberData.wing || '',
+        phone,
+        flatNo,
+        wing,
         maintenanceStatus,
       });
     }
   }
-  
+
   return members;
 }
 
-// Simple email validation
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 }
 
-// Rate limiting by IP address (per function instance)
+// Rate limiting
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-const RATE_LIMIT = 5; // requests per window - strict for unauthenticated endpoint
-const WINDOW_MS = 60000; // 1 minute
+const RATE_LIMIT = 5;
+const WINDOW_MS = 60000;
 
 function checkRateLimit(identifier: string): boolean {
   const now = Date.now();
   const record = rateLimitMap.get(identifier);
-  
+
   if (!record || now > record.resetAt) {
     rateLimitMap.set(identifier, { count: 1, resetAt: now + WINDOW_MS });
     return true;
   }
-  
+
   if (record.count >= RATE_LIMIT) {
     return false;
   }
-  
+
   record.count++;
   return true;
 }
 
-// Cache for Google Sheets data to reduce external API calls
+// Cache
 let cachedSheetData: { data: SheetMember[]; timestamp: number } | null = null;
-const CACHE_TTL = 300000; // 5 minutes
+const CACHE_TTL = 300000;
 
 async function getSheetMembers(): Promise<SheetMember[]> {
   const now = Date.now();
   if (cachedSheetData && now - cachedSheetData.timestamp < CACHE_TTL) {
     return cachedSheetData.data;
   }
-  
+
   const members = await fetchSheetEmails();
   cachedSheetData = { data: members, timestamp: now };
   return members;
 }
 
-// Get client IP for rate limiting
 function getClientIP(req: Request): string {
-  // Check common headers for client IP (in order of reliability)
   const forwardedFor = req.headers.get('x-forwarded-for');
   if (forwardedFor) {
-    // X-Forwarded-For can contain multiple IPs; take the first one
     return forwardedFor.split(',')[0].trim();
   }
-  
   const realIP = req.headers.get('x-real-ip');
-  if (realIP) {
-    return realIP;
-  }
-  
-  // Fallback to a default identifier (shouldn't happen in production)
+  if (realIP) return realIP;
   return 'unknown';
 }
 
 serve(async (req) => {
-  
-  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Apply rate limiting by IP address (for unauthenticated access during login/signup)
     const clientIP = getClientIP(req);
     if (!checkRateLimit(clientIP)) {
       return new Response(
@@ -167,7 +169,6 @@ serve(async (req) => {
     }
 
     let email: string;
-    
     try {
       const body = await req.json();
       email = body.email;
@@ -177,7 +178,7 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
+
     if (!email || typeof email !== 'string') {
       return new Response(
         JSON.stringify({ valid: false, error: 'Email is required' }),
@@ -185,7 +186,6 @@ serve(async (req) => {
       );
     }
 
-    // Validate email format
     if (!isValidEmail(email)) {
       return new Response(
         JSON.stringify({ valid: false, error: 'Invalid email format' }),
@@ -194,7 +194,7 @@ serve(async (req) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    
+
     let members: SheetMember[];
     try {
       members = await getSheetMembers();
@@ -204,9 +204,9 @@ serve(async (req) => {
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
+
     const member = members.find(m => m.email === normalizedEmail);
-    
+
     if (member) {
       return new Response(
         JSON.stringify({
@@ -224,13 +224,11 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     } else {
-      // Use generic error message to prevent email enumeration
       return new Response(
         JSON.stringify({ valid: false, error: 'Email not registered. Please contact your society manager.' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
   } catch (error: unknown) {
     console.error('Error validating email');
     return new Response(
