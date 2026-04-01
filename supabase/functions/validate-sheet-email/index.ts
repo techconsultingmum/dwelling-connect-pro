@@ -198,7 +198,8 @@ serve(async (req) => {
     let members: SheetMember[];
     try {
       members = await getSheetMembers();
-    } catch {
+    } catch (fetchErr) {
+      console.error('Failed to fetch sheet data:', fetchErr);
       return new Response(
         JSON.stringify({ valid: false, error: 'Unable to verify email at this time. Please try again later.' }),
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
