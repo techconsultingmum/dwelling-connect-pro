@@ -1,0 +1,14 @@
+# Society ERP
+
+> A cooperative housing society management platform for member directories, maintenance billing, complaints, notices, and real-time resident–manager chat.
+
+Society ERP helps managing committees run their housing society end-to-end: it keeps the member roster and flat assignments in sync with a Google Sheet source of truth, tracks maintenance dues and payment status, lets residents raise and follow up on complaints, broadcasts notices, and provides one-to-one chat between members and the manager.
+
+## Pages
+
+- [Home](/): Product overview, features, and call to action for cooperative housing society management.
+- [Sign In](/login): Email and password sign-in or sign-up for verified society members.
+
+## Optional
+
+- Authenticated routes (dashboard, members directory, complaints, notices, payments, chat, profile, admin) are gated behind sign-in and are not intended for AI crawlers.
