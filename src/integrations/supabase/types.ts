@@ -14,6 +14,93 @@ export type Database = {
   }
   public: {
     Tables: {
+      complaints: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          flat_no: string | null
+          id: string
+          member_id: string | null
+          resolved_at: string | null
+          resolved_by_user_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+          user_name: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description: string
+          flat_no?: string | null
+          id?: string
+          member_id?: string | null
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+          user_name: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          flat_no?: string | null
+          id?: string
+          member_id?: string | null
+          resolved_at?: string | null
+          resolved_by_user_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+          user_name?: string
+        }
+        Relationships: []
+      }
+      maintenance_payments: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          member_id: string
+          paid_at: string | null
+          period: string
+          reference: string | null
+          source: string
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          id?: string
+          member_id: string
+          paid_at?: string | null
+          period: string
+          reference?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          member_id?: string
+          paid_at?: string | null
+          period?: string
+          reference?: string | null
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       messages: {
         Row: {
           created_at: string
@@ -38,6 +125,42 @@ export type Database = {
           message?: string
           receiver_id?: string
           sender_id?: string
+        }
+        Relationships: []
+      }
+      notices: {
+        Row: {
+          created_at: string
+          created_by_name: string
+          created_by_user_id: string | null
+          description: string
+          id: string
+          priority: string
+          published_at: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by_name?: string
+          created_by_user_id?: string | null
+          description: string
+          id?: string
+          priority?: string
+          published_at?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by_name?: string
+          created_by_user_id?: string | null
+          description?: string
+          id?: string
+          priority?: string
+          published_at?: string
+          title?: string
+          updated_at?: string
         }
         Relationships: []
       }
