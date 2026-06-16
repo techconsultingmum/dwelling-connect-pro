@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Building2, Lock, Eye, EyeOff, Loader2, CheckCircle2 } from 'lucide-react';
 import { passwordSchema } from '@/lib/validation';
+import { Seo } from '@/components/Seo';
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -99,6 +100,13 @@ export default function ResetPassword() {
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <Seo
+        title="Reset Your Password | Society ERP"
+        description="Set a new password for your Society ERP account to regain access to your housing society dashboard."
+        path="/reset-password"
+        noindex
+      />
+      <h1 className="sr-only">Reset Your Society ERP Password</h1>
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
@@ -106,7 +114,7 @@ export default function ResetPassword() {
               <Building2 className="w-8 h-8 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Reset Your Password</CardTitle>
+          <CardTitle className="text-2xl" as="h2">Reset Your Password</CardTitle>
           <CardDescription>
             Enter your new password below
           </CardDescription>
