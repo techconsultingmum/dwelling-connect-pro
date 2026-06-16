@@ -208,28 +208,19 @@ serve(async (req) => {
 
     const member = members.find(m => m.email === normalizedEmail);
 
+    // SECURITY: never return member PII to unauthenticated callers.
+    // Only a boolean result is exposed. Profile fields are synchronised
+    // after the user authenticates (via the google-sheets-sync function).
     if (member) {
       return new Response(
-        JSON.stringify({
-          valid: true,
-          member: {
-            memberId: member.memberId,
-            name: member.name,
-            email: member.email,
-            phone: member.phone,
-            flatNo: member.flatNo,
-            wing: member.wing,
-            maintenanceStatus: member.maintenanceStatus,
-          }
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    } else {
-      return new Response(
-        JSON.stringify({ valid: false, error: 'Email not registered. Please contact your society manager.' }),
+        JSON.stringify({ valid: true }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    return new Response(
+      JSON.stringify({ valid: false, error: 'Email not registered. Please contact your society manager.' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   } catch (error: unknown) {
     console.error('Error validating email');
     return new Response(
