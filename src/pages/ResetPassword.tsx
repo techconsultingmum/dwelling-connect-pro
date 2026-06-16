@@ -114,7 +114,7 @@ export default function ResetPassword() {
               <Building2 className="w-8 h-8 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl" as="h2">Reset Your Password</CardTitle>
+          <h2 className="text-2xl font-semibold leading-none tracking-tight">Reset Your Password</h2>
           <CardDescription>
             Enter your new password below
           </CardDescription>
