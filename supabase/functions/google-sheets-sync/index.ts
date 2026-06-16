@@ -158,6 +158,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
@@ -178,6 +179,16 @@ serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Authorization: only managers may pull the full roster
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
+    const { data: roleRow } = await supabaseAdmin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .eq('role', 'manager')
+      .maybeSingle();
+    const isManager = !!roleRow;
 
     const { action } = await req.json().catch(() => ({ action: 'read' }));
 
@@ -207,6 +218,20 @@ serve(async (req) => {
 
       const { members, bills } = parseCSV(csvText);
       console.log(`Parsed ${members.length} members and ${bills.length} bills from CSV`);
+
+      if (!isManager) {
+        // Non-managers may only see their own record + own bills.
+        const callerEmail = (user.email || '').toLowerCase().trim();
+        const ownMembers = members.filter(
+          (m) => (m.email || '').toLowerCase().trim() === callerEmail
+        );
+        const ownIds = new Set(ownMembers.map((m) => m.memberId));
+        const ownBills = bills.filter((b) => ownIds.has(b.userId));
+        return new Response(
+          JSON.stringify({ success: true, members: ownMembers, bills: ownBills }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
       return new Response(
         JSON.stringify({ success: true, members, bills }),
