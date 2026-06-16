@@ -32,6 +32,7 @@ import {
   Mail,
   Home,
   Loader2,
+  Download,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { User } from '@/types';
@@ -42,6 +43,7 @@ export default function Members() {
   const { isDemoMode } = useDemo();
   const { members, isLoading, syncFromGoogleSheet } = useData();
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'paid' | 'pending' | 'overdue'>('all');
   const [selectedMember, setSelectedMember] = useState<User | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -50,13 +52,44 @@ export default function Members() {
 
   const filteredMembers = useMemo(() => {
     const query = searchQuery.toLowerCase();
-    return members.filter(member =>
-      member.name.toLowerCase().includes(query) ||
-      member.flatNo.toLowerCase().includes(query) ||
-      member.email.toLowerCase().includes(query) ||
-      member.wing.toLowerCase().includes(query)
-    );
-  }, [members, searchQuery]);
+    return members.filter((member) => {
+      const matchesSearch =
+        !query ||
+        member.name.toLowerCase().includes(query) ||
+        member.flatNo.toLowerCase().includes(query) ||
+        member.email.toLowerCase().includes(query) ||
+        member.wing.toLowerCase().includes(query);
+      const matchesStatus =
+        statusFilter === 'all' || member.maintenanceStatus === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [members, searchQuery, statusFilter]);
+
+  const handleExportCSV = () => {
+    if (filteredMembers.length === 0) {
+      toast.info('Nothing to export');
+      return;
+    }
+    const escape = (v: string | number) => {
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const headers = ['Member ID', 'Name', 'Email', 'Phone', 'Flat', 'Wing', 'Status', 'Outstanding Dues (INR)'];
+    const rows = filteredMembers.map((m) => [
+      m.memberId, m.name, m.email, m.phone, m.flatNo, m.wing, m.maintenanceStatus, m.outstandingDues,
+    ]);
+    const csv = [headers, ...rows].map((r) => r.map(escape).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `members-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success(`Exported ${filteredMembers.length} members`);
+  };
 
   const handleRefresh = async () => {
     setSyncError(null);
@@ -93,6 +126,15 @@ export default function Members() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              onClick={handleExportCSV}
+              disabled={isLoading || filteredMembers.length === 0}
+              aria-label="Export members to CSV"
+            >
+              <Download className="w-4 h-4" />
+              <span className="hidden sm:inline ml-2">Export CSV</span>
+            </Button>
             <Button 
               variant="outline" 
               onClick={handleRefresh}
@@ -119,7 +161,27 @@ export default function Members() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
+                  aria-label="Search members"
                 />
+              </div>
+              <div className="flex items-center gap-1 rounded-md border bg-background p-1" role="tablist" aria-label="Filter by status">
+                {(['all', 'paid', 'pending', 'overdue'] as const).map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    role="tab"
+                    aria-selected={statusFilter === s}
+                    onClick={() => setStatusFilter(s)}
+                    className={cn(
+                      'px-3 py-1 text-xs font-medium rounded capitalize transition-colors',
+                      statusFilter === s
+                        ? 'bg-primary text-primary-foreground'
+                        : 'text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    {s}
+                  </button>
+                ))}
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span>{filteredMembers.length} members found</span>
