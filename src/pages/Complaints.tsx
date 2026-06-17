@@ -98,16 +98,20 @@ export default function Complaints() {
         return;
       }
 
-      addComplaint({
-        userId: currentUser?.memberId || '',
-        userName: currentUser?.name || '',
-        flatNo: currentUser?.flatNo || '',
-        category: newComplaint.category,
-        description: newComplaint.description.trim(),
-        status: 'open',
-      });
-      setNewComplaint({ category: '', description: '' });
-      setIsDialogOpen(false);
+      try {
+        await addComplaint({
+          userId: currentUser?.memberId || '',
+          userName: currentUser?.name || '',
+          flatNo: currentUser?.flatNo || '',
+          category: newComplaint.category,
+          description: newComplaint.description.trim(),
+          status: 'open',
+        });
+        setNewComplaint({ category: '', description: '' });
+        setIsDialogOpen(false);
+      } catch {
+        // toast already shown by context
+      }
     } finally {
       setIsSubmitting(false);
     }

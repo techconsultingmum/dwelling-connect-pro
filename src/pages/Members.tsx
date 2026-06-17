@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { PageLoader } from '@/components/ui/loading-spinner';
+import { ErrorAlert } from '@/components/ui/error-alert';
 import { 
   Users, 
   Search, 
@@ -47,6 +48,7 @@ export default function Members() {
   const [selectedMember, setSelectedMember] = useState<User | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Role check is now handled by App.tsx routes
 
@@ -65,30 +67,38 @@ export default function Members() {
     });
   }, [members, searchQuery, statusFilter]);
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (filteredMembers.length === 0) {
       toast.info('Nothing to export');
       return;
     }
-    const escape = (v: string | number) => {
+    setIsExporting(true);
+    try {
+      const escape = (v: string | number) => {
       const s = String(v ?? '');
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-    };
-    const headers = ['Member ID', 'Name', 'Email', 'Phone', 'Flat', 'Wing', 'Status', 'Outstanding Dues (INR)'];
-    const rows = filteredMembers.map((m) => [
-      m.memberId, m.name, m.email, m.phone, m.flatNo, m.wing, m.maintenanceStatus, m.outstandingDues,
-    ]);
-    const csv = [headers, ...rows].map((r) => r.map(escape).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `members-${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast.success(`Exported ${filteredMembers.length} members`);
+      };
+      const headers = ['Member ID', 'Name', 'Email', 'Phone', 'Flat', 'Wing', 'Status', 'Outstanding Dues (INR)'];
+      const rows = filteredMembers.map((m) => [
+        m.memberId, m.name, m.email, m.phone, m.flatNo, m.wing, m.maintenanceStatus, m.outstandingDues,
+      ]);
+      const csv = [headers, ...rows].map((r) => r.map(escape).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `members-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success(`Exported ${filteredMembers.length} members`);
+    } catch (err) {
+      console.error('CSV export error:', err);
+      toast.error('Failed to export CSV');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleRefresh = async () => {
@@ -129,11 +139,17 @@ export default function Members() {
             <Button
               variant="outline"
               onClick={handleExportCSV}
-              disabled={isLoading || filteredMembers.length === 0}
+              disabled={isLoading || isExporting || filteredMembers.length === 0}
               aria-label="Export members to CSV"
             >
-              <Download className="w-4 h-4" />
-              <span className="hidden sm:inline ml-2">Export CSV</span>
+              {isExporting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline ml-2">
+                {isExporting ? 'Exporting…' : 'Export CSV'}
+              </span>
             </Button>
             <Button 
               variant="outline" 
@@ -149,6 +165,14 @@ export default function Members() {
             </Button>
           </div>
         </div>
+
+        {syncError && (
+          <ErrorAlert
+            title="Sync failed"
+            message={syncError}
+            onRetry={handleRefresh}
+          />
+        )}
 
         {/* Search & Filters */}
         <Card>
@@ -278,7 +302,22 @@ export default function Members() {
               <EmptyState
                 icon={Users}
                 title="No members found"
-                description={searchQuery ? "Try adjusting your search query" : "No members have been added yet"}
+                description={
+                  searchQuery || statusFilter !== 'all'
+                    ? 'Try adjusting your search or filters'
+                    : 'No members have been added yet'
+                }
+                action={
+                  searchQuery || statusFilter !== 'all'
+                    ? {
+                        label: 'Clear filters',
+                        onClick: () => {
+                          setSearchQuery('');
+                          setStatusFilter('all');
+                        },
+                      }
+                    : undefined
+                }
                 className="py-20"
               />
             )}

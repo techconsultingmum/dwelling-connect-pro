@@ -84,15 +84,19 @@ export default function Notices() {
         return;
       }
 
-      addNotice({
-        title: newNotice.title.trim(),
-        description: newNotice.description.trim(),
-        priority: newNotice.priority,
-        date: new Date().toISOString().split('T')[0],
-        createdBy: currentUser?.name || 'Manager',
-      });
-      setNewNotice({ title: '', description: '', priority: 'medium' });
-      setIsDialogOpen(false);
+      try {
+        await addNotice({
+          title: newNotice.title.trim(),
+          description: newNotice.description.trim(),
+          priority: newNotice.priority,
+          date: new Date().toISOString().split('T')[0],
+          createdBy: currentUser?.name || 'Manager',
+        });
+        setNewNotice({ title: '', description: '', priority: 'medium' });
+        setIsDialogOpen(false);
+      } catch {
+        // toast already shown
+      }
     } finally {
       setIsSubmitting(false);
     }
