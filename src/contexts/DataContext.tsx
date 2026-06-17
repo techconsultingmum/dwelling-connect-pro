@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useCallback, ReactNode, use
 import { User, Notice, Complaint, MaintenanceBill, DashboardStats } from '@/types';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDemo } from '@/contexts/DemoContext';
 import { toast } from 'sonner';
 import { sanitizeText } from '@/lib/validation';
 
@@ -14,15 +15,12 @@ interface DataContextType {
   isLoading: boolean;
   error: string | null;
   syncFromGoogleSheet: () => Promise<void>;
-  addNotice: (notice: Omit<Notice, 'id'>) => void;
-  addComplaint: (complaint: Omit<Complaint, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  updateComplaintStatus: (id: string, status: Complaint['status']) => void;
+  addNotice: (notice: Omit<Notice, 'id'>) => Promise<void>;
+  addComplaint: (complaint: Omit<Complaint, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateComplaintStatus: (id: string, status: Complaint['status']) => Promise<void>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
-
-// Webhook URL for optional integrations (should be moved to env variable in production)
-const WEBHOOK_URL = import.meta.env.VITE_WEBHOOK_URL || '';
 
 // Generate a unique ID for demo data
 const generateId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
@@ -150,7 +148,8 @@ const demoMembers: User[] = [
 ];
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user, role } = useAuth();
+  const { isDemoMode } = useDemo();
   const [members, setMembers] = useState<User[]>(demoMembers);
   const [notices, setNotices] = useState<Notice[]>(demoNotices);
   const [complaints, setComplaints] = useState<Complaint[]>(demoComplaints);
@@ -219,70 +218,154 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated]);
 
-  const addNotice = useCallback((notice: Omit<Notice, 'id'>) => {
-    const newNotice: Notice = {
-      id: generateId(),
+  // --- Notices ---
+  const mapNoticeRow = (r: any): Notice => ({
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    date: (r.published_at || r.created_at || '').split('T')[0],
+    createdBy: r.created_by_name || 'Manager',
+    priority: r.priority,
+  });
+
+  const loadNotices = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('notices')
+      .select('*')
+      .order('published_at', { ascending: false });
+    if (error) {
+      console.error('Load notices error:', error);
+      return;
+    }
+    setNotices((data || []).map(mapNoticeRow));
+  }, []);
+
+  const addNotice = useCallback(async (notice: Omit<Notice, 'id'>) => {
+    if (isDemoMode || !isAuthenticated) {
+      const newNotice: Notice = {
+        id: generateId(),
+        ...notice,
+        title: sanitizeText(notice.title),
+        description: sanitizeText(notice.description),
+      };
+      setNotices(prev => [newNotice, ...prev]);
+      toast.success('Notice published (demo)');
+      return;
+    }
+    const { error } = await supabase.from('notices').insert({
       title: sanitizeText(notice.title),
       description: sanitizeText(notice.description),
-      date: notice.date,
-      createdBy: notice.createdBy,
       priority: notice.priority,
-    };
-    setNotices(prev => [newNotice, ...prev]);
+      created_by_user_id: user?.userId,
+      created_by_name: notice.createdBy || user?.name || 'Manager',
+      published_at: new Date().toISOString(),
+    });
+    if (error) {
+      console.error(error);
+      toast.error(error.message || 'Failed to publish notice');
+      throw error;
+    }
     toast.success('Notice published successfully');
+  }, [isDemoMode, isAuthenticated, user]);
+
+  // --- Complaints ---
+  const mapComplaintRow = (r: any): Complaint => ({
+    id: r.id,
+    userId: r.member_id || r.user_id,
+    userName: r.user_name,
+    flatNo: r.flat_no || '',
+    category: r.category,
+    description: r.description,
+    status: r.status,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  });
+
+  const loadComplaints = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('complaints')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('Load complaints error:', error);
+      return;
+    }
+    setComplaints((data || []).map(mapComplaintRow));
   }, []);
 
-  const addComplaint = useCallback((complaint: Omit<Complaint, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const now = new Date().toISOString();
-    const newComplaint: Complaint = {
-      id: generateId(),
-      userId: complaint.userId,
-      userName: complaint.userName,
-      flatNo: complaint.flatNo,
+  const addComplaint = useCallback(async (complaint: Omit<Complaint, 'id' | 'createdAt' | 'updatedAt'>) => {
+    if (isDemoMode || !isAuthenticated || !user) {
+      const now = new Date().toISOString();
+      const newComplaint: Complaint = {
+        id: generateId(),
+        ...complaint,
+        description: sanitizeText(complaint.description),
+        createdAt: now,
+        updatedAt: now,
+      };
+      setComplaints(prev => [newComplaint, ...prev]);
+      toast.success('Complaint submitted (demo)');
+      return;
+    }
+    const { error } = await supabase.from('complaints').insert({
+      user_id: user.userId,
+      member_id: user.memberId || complaint.userId || null,
+      user_name: complaint.userName || user.name,
+      flat_no: complaint.flatNo || user.flatNo || null,
       category: complaint.category,
       description: sanitizeText(complaint.description),
-      status: complaint.status,
-      createdAt: now,
-      updatedAt: now,
-    };
-    setComplaints(prev => [newComplaint, ...prev]);
-    toast.success('Complaint submitted successfully');
-  }, []);
-
-  const updateComplaintStatus = useCallback((id: string, status: Complaint['status']) => {
-    setComplaints(prev => 
-      prev.map(c => 
-        c.id === id 
-          ? { ...c, status, updatedAt: new Date().toISOString() }
-          : c
-      )
-    );
-
-    toast.success(`Complaint marked as ${status}`);
-
-    // Send webhook (fire and forget) - only if webhook URL is configured
-    if (WEBHOOK_URL) {
-      fetch(WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'complaint_status_update',
-          complaintId: id,
-          status,
-          timestamp: new Date().toISOString(),
-        }),
-      }).catch(() => {
-        // Silently fail - webhook is optional
-      });
+      status: complaint.status || 'open',
+    });
+    if (error) {
+      console.error(error);
+      toast.error(error.message || 'Failed to submit complaint');
+      throw error;
     }
-  }, []);
+    toast.success('Complaint submitted successfully');
+  }, [isDemoMode, isAuthenticated, user]);
+
+  const updateComplaintStatus = useCallback(async (id: string, status: Complaint['status']) => {
+    if (isDemoMode || !isAuthenticated) {
+      setComplaints(prev =>
+        prev.map(c => (c.id === id ? { ...c, status, updatedAt: new Date().toISOString() } : c))
+      );
+      toast.success(`Complaint marked as ${status}`);
+      return;
+    }
+    const patch: Record<string, any> = { status };
+    if (status === 'resolved') {
+      patch.resolved_at = new Date().toISOString();
+      patch.resolved_by_user_id = user?.userId;
+    }
+    const { error } = await supabase.from('complaints').update(patch).eq('id', id);
+    if (error) {
+      console.error(error);
+      toast.error(error.message || 'Failed to update complaint');
+      throw error;
+    }
+    toast.success(`Complaint marked as ${status}`);
+  }, [isDemoMode, isAuthenticated, user]);
 
   // Load data when authenticated
   useEffect(() => {
-    if (isAuthenticated) {
-      syncFromGoogleSheet();
-    }
-  }, [isAuthenticated, syncFromGoogleSheet]);
+    if (!isAuthenticated || isDemoMode) return;
+    syncFromGoogleSheet();
+    loadNotices();
+    loadComplaints();
+  }, [isAuthenticated, isDemoMode, syncFromGoogleSheet, loadNotices, loadComplaints]);
+
+  // Realtime subscriptions
+  useEffect(() => {
+    if (!isAuthenticated || isDemoMode) return;
+    const channel = supabase
+      .channel('data-context-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notices' }, () => loadNotices())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'complaints' }, () => loadComplaints())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated, isDemoMode, loadNotices, loadComplaints]);
 
   return (
     <DataContext.Provider value={{
