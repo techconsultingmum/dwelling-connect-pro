@@ -50,7 +50,7 @@ export function useRealtimeChat(partnerId: string | null) {
     setIsLoading(false);
   }, [user?.userId, partnerId]);
 
-  // Subscribe to realtime updates
+  // Subscribe to realtime updates - scope the channel to this conversation
   useEffect(() => {
     if (!user?.userId) {
       setIsLoading(false);
@@ -71,16 +71,30 @@ export function useRealtimeChat(partnerId: string | null) {
           event: 'INSERT',
           schema: 'public',
           table: 'messages',
+          filter: `receiver_id=eq.${user.userId}`,
         },
         (payload) => {
           const newMessage = payload.new as Message;
-          // Only add if it's part of current conversation
-          if (
-            (newMessage.sender_id === user.userId && newMessage.receiver_id === partnerId) ||
-            (newMessage.sender_id === partnerId && newMessage.receiver_id === user.userId)
-          ) {
+          if (newMessage.sender_id === partnerId) {
             setMessages((prev) => {
-              // Prevent duplicates
+              if (prev.some(m => m.id === newMessage.id)) return prev;
+              return [...prev, newMessage];
+            });
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `sender_id=eq.${user.userId}`,
+        },
+        (payload) => {
+          const newMessage = payload.new as Message;
+          if (newMessage.receiver_id === partnerId) {
+            setMessages((prev) => {
               if (prev.some(m => m.id === newMessage.id)) return prev;
               return [...prev, newMessage];
             });
@@ -149,22 +163,23 @@ export function useRealtimeChat(partnerId: string | null) {
 // Hook for getting all chat partners with unread counts
 export function useChatPartners() {
   const { user } = useAuth();
-  const [partners, setPartners] = useState<{ userId: string; name: string; flatNo: string; unreadCount: number }[]>([]);
+  const [partners, setPartners] = useState<{ userId: string; name: string; flatNo: string; unreadCount: number; role?: 'manager' | 'user' }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.userId) return;
 
     const fetchPartners = async () => {
       setIsLoading(true);
+      setError(null);
 
-      // Get all profiles (for manager view)
+      // Use SECURITY DEFINER RPC: managers see all members, members see managers.
       const { data: profiles, error: profileError } = await supabase
-        .from('profiles')
-        .select('user_id, name, flat_no')
-        .neq('user_id', user.userId);
+        .rpc('get_chat_partners');
 
       if (profileError || !profiles) {
+        setError('Unable to load contacts');
         setIsLoading(false);
         return;
       }
@@ -184,11 +199,12 @@ export function useChatPartners() {
         });
       }
 
-      const partnerList = profiles.map((profile) => ({
+      const partnerList = (profiles as Array<{ user_id: string; name: string | null; flat_no: string | null; role: 'manager' | 'user' }>).map((profile) => ({
         userId: profile.user_id,
         name: profile.name || 'Unknown',
         flatNo: profile.flat_no || '',
         unreadCount: unreadCounts.get(profile.user_id) || 0,
+        role: profile.role,
       }));
 
       setPartners(partnerList);
@@ -206,6 +222,7 @@ export function useChatPartners() {
           event: '*',
           schema: 'public',
           table: 'messages',
+          filter: `receiver_id=eq.${user.userId}`,
         },
         () => {
           fetchPartners();
@@ -218,5 +235,5 @@ export function useChatPartners() {
     };
   }, [user?.userId]);
 
-  return { partners, isLoading };
+  return { partners, isLoading, error };
 }
