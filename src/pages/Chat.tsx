@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/ui/empty-state';
+import { ErrorAlert } from '@/components/ui/error-alert';
 import { 
   MessageSquare, 
   Send, 
@@ -52,7 +53,7 @@ export default function Chat() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const isManager = isDemoMode ? true : role === 'manager';
-  const { partners: realPartners, isLoading: partnersLoading } = useChatPartners();
+  const { partners: realPartners, isLoading: partnersLoading, error: partnersError, refetch: refetchPartners } = useChatPartners();
   
   const partners = isDemoMode ? demoChatPartners : realPartners;
   
@@ -166,6 +167,14 @@ export default function Chat() {
                         </div>
                       </div>
                     ))
+                  ) : partnersError && !isDemoMode ? (
+                    <div className="p-2">
+                      <ErrorAlert
+                        title="Couldn't load contacts"
+                        message={partnersError}
+                        onRetry={refetchPartners}
+                      />
+                    </div>
                   ) : partners.length === 0 ? (
                     <EmptyState
                       icon={Users}
