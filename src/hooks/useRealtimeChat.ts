@@ -75,7 +75,11 @@ export function useRealtimeChat(partnerId: string | null) {
         },
         (payload) => {
           const newMessage = payload.new as Message;
-          if (newMessage.sender_id === partnerId) {
+          // Defense-in-depth: only accept messages that belong to *this* 1:1 conversation.
+          if (
+            newMessage.sender_id === partnerId &&
+            newMessage.receiver_id === user.userId
+          ) {
             setMessages((prev) => {
               if (prev.some(m => m.id === newMessage.id)) return prev;
               return [...prev, newMessage];
@@ -93,7 +97,10 @@ export function useRealtimeChat(partnerId: string | null) {
         },
         (payload) => {
           const newMessage = payload.new as Message;
-          if (newMessage.receiver_id === partnerId) {
+          if (
+            newMessage.receiver_id === partnerId &&
+            newMessage.sender_id === user.userId
+          ) {
             setMessages((prev) => {
               if (prev.some(m => m.id === newMessage.id)) return prev;
               return [...prev, newMessage];
@@ -107,9 +114,34 @@ export function useRealtimeChat(partnerId: string | null) {
           event: 'UPDATE',
           schema: 'public',
           table: 'messages',
+          filter: `receiver_id=eq.${user.userId}`,
         },
         (payload) => {
           const updatedMessage = payload.new as Message;
+          // Only apply updates for messages in the currently-open conversation.
+          const belongsToConversation =
+            (updatedMessage.sender_id === user.userId && updatedMessage.receiver_id === partnerId) ||
+            (updatedMessage.sender_id === partnerId && updatedMessage.receiver_id === user.userId);
+          if (!belongsToConversation) return;
+          setMessages((prev) =>
+            prev.map((msg) => (msg.id === updatedMessage.id ? updatedMessage : msg))
+          );
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `sender_id=eq.${user.userId}`,
+        },
+        (payload) => {
+          const updatedMessage = payload.new as Message;
+          const belongsToConversation =
+            (updatedMessage.sender_id === user.userId && updatedMessage.receiver_id === partnerId) ||
+            (updatedMessage.sender_id === partnerId && updatedMessage.receiver_id === user.userId);
+          if (!belongsToConversation) return;
           setMessages((prev) =>
             prev.map((msg) => (msg.id === updatedMessage.id ? updatedMessage : msg))
           );
@@ -167,10 +199,12 @@ export function useChatPartners() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!user?.userId) return;
-
-    const fetchPartners = async () => {
+  const fetchPartners = useCallback(async () => {
+    if (!user?.userId) {
+      setPartners([]);
+      setIsLoading(false);
+      return;
+    }
       setIsLoading(true);
       setError(null);
 
@@ -179,7 +213,8 @@ export function useChatPartners() {
         .rpc('get_chat_partners');
 
       if (profileError || !profiles) {
-        setError('Unable to load contacts');
+        setError(profileError?.message || 'Unable to load contacts');
+        setPartners([]);
         setIsLoading(false);
         return;
       }
@@ -209,8 +244,10 @@ export function useChatPartners() {
 
       setPartners(partnerList);
       setIsLoading(false);
-    };
+  }, [user?.userId]);
 
+  useEffect(() => {
+    if (!user?.userId) return;
     fetchPartners();
 
     // Subscribe to message changes for unread count updates
@@ -233,7 +270,7 @@ export function useChatPartners() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.userId]);
+  }, [user?.userId, fetchPartners]);
 
-  return { partners, isLoading, error };
+  return { partners, isLoading, error, refetch: fetchPartners };
 }
