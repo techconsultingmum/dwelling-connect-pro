@@ -326,7 +326,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...prev,
         user: prev.user ? { ...prev.user, ...updates } : null,
       }));
-      
+
+      // Fire-and-forget: mirror name/phone edits back to the linked Google Sheet.
+      if (updates.name !== undefined || updates.phone !== undefined) {
+        supabase.functions
+          .invoke('sheet-writeback', {
+            body: {
+              name: updates.name,
+              phone: updates.phone,
+            },
+          })
+          .catch((e) => console.warn('Sheet writeback failed:', e));
+      }
+
       return { success: true };
     } catch (err) {
       return { success: false, error: 'An unexpected error occurred' };
