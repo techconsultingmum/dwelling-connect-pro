@@ -9,6 +9,7 @@ import { Building2, Shield, User, Eye, EyeOff, Loader2, UserPlus, LogIn, ArrowLe
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Seo } from '@/components/Seo';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -123,7 +124,6 @@ export default function Login() {
     }
 
     try {
-      const { supabase } = await import('@/integrations/supabase/client');
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
         redirectTo: `${window.location.origin}/reset-password`,
       });
